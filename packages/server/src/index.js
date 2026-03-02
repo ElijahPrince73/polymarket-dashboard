@@ -72,19 +72,49 @@ async function boot() {
 
   // 2. Serve React build (must be AFTER API routes, BEFORE engine init)
   const clientDistPath = path.resolve(__dirname, "../../client/dist");
-  console.log(`[Boot] Serving static files from: ${clientDistPath}`);
+  console.log("[Boot] Static path:", clientDistPath);
 
-  // Check if the dist directory exists
-  const fs = await import("node:fs");
-  if (fs.existsSync(clientDistPath)) {
-    console.log(`[Boot] Static directory exists, files: ${fs.readdirSync(clientDistPath).join(', ')}`);
-  } else {
-    console.error(`[Boot] WARNING: Static directory does not exist: ${clientDistPath}`);
+  try {
+    const { existsSync, readdirSync } = await import("node:fs");
+    if (existsSync(clientDistPath)) {
+      const files = readdirSync(clientDistPath);
+      console.log("[Boot] Dist files:", files.join(", "));
+      if (existsSync(path.join(clientDistPath, "assets"))) {
+        const assetFiles = readdirSync(path.join(clientDistPath, "assets"));
+        console.log("[Boot] Asset files:", assetFiles.join(", "));
+      }
+    } else {
+      console.error("[Boot] WARNING: dist directory NOT FOUND at", clientDistPath);
+      // Try alternate paths
+      const altPath1 = path.resolve(process.cwd(), "packages/client/dist");
+      const altPath2 = path.resolve(process.cwd(), "dist");
+      console.log("[Boot] CWD:", process.cwd());
+      console.log("[Boot] Alt path 1 exists:", existsSync(altPath1), altPath1);
+      console.log("[Boot] Alt path 2 exists:", existsSync(altPath2), altPath2);
+    }
+  } catch (e) {
+    console.error("[Boot] FS check error:", e.message);
   }
 
-  app.use(express.static(clientDistPath, { maxAge: '1h' }));
+  // Try multiple paths for the client dist
+  const { existsSync: fsExists } = await import("node:fs");
+  const candidates = [
+    clientDistPath,
+    path.resolve(process.cwd(), "packages/client/dist"),
+    path.resolve(process.cwd(), "dist"),
+  ];
+  let staticPath = clientDistPath;
+  for (const candidate of candidates) {
+    if (fsExists(candidate) && fsExists(path.join(candidate, "index.html"))) {
+      staticPath = candidate;
+      console.log("[Boot] Using static path:", staticPath);
+      break;
+    }
+  }
+
+  app.use(express.static(staticPath, { maxAge: '1h' }));
   app.get("/{*path}", (_req, res) => {
-    res.sendFile(path.join(clientDistPath, "index.html"));
+    res.sendFile(path.join(staticPath, "index.html"));
   });
 
   // 3. Start listening

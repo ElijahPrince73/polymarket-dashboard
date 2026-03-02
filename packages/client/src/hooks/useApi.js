@@ -1,43 +1,59 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-const unwrapData = (payload) => {
-  if (payload && typeof payload === 'object' && 'data' in payload) {
-    return payload.data;
-  }
-
-  return payload;
-};
-
-export function useApi(url) {
+export default function useApi(url) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchData = useCallback(async () => {
-    setError(null);
+  const unwrapResponse = useCallback((payload) => {
+    if (payload && typeof payload === 'object' && payload.success === true && 'data' in payload) {
+      return payload.data;
+    }
+    return payload;
+  }, []);
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+        throw new Error(`Request failed (${response.status})`);
       }
-
       const json = await response.json();
-      setData(unwrapData(json));
+      setData(unwrapResponse(json));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  }, [url]);
+  }, [url, unwrapResponse]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchData();
+    let isMounted = true;
 
-    const intervalId = setInterval(fetchData, 10_000);
-    return () => clearInterval(intervalId);
+    const run = async () => {
+      if (!isMounted) return;
+      await fetchData();
+    };
+
+    run();
+    const intervalId = setInterval(run, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return useMemo(
+    () => ({
+      data,
+      loading,
+      error,
+      refetch: fetchData,
+    }),
+    [data, loading, error, fetchData]
+  );
 }

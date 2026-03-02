@@ -1,16 +1,37 @@
-const jsonRequest = async (url, options = {}) => {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+const jsonHeaders = { 'Content-Type': 'application/json' };
 
+async function request(path, options = {}) {
+  const response = await fetch(path, options);
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    throw new Error(`Request failed (${response.status})`);
   }
-
   return response.json();
-};
+}
 
-export const getWeatherStatus = () => jsonRequest('/api/weather/status');
-export const getWeatherTrades = () => jsonRequest('/api/weather/trades');
-export const getWeatherSummary = () => jsonRequest('/api/weather/summary');
+export function getWeatherStatus() {
+  return request('/api/weather/status');
+}
+
+export function getWeatherTrades() {
+  return request('/api/weather/trades');
+}
+
+export function getWeatherSummary() {
+  return request('/api/weather/summary');
+}
+
+export function triggerWeatherTick() {
+  return request('/api/weather/tick', { method: 'POST' });
+}
+
+export function killWeather() {
+  return request('/api/weather/kill', { method: 'POST' });
+}
+
+export function setWeatherMode(mode) {
+  return request('/api/weather/mode', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ mode: String(mode).toLowerCase() }),
+  });
+}

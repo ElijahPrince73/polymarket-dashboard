@@ -327,16 +327,17 @@ export const CONFIG = {
     // Count 7+ allowed (strong trend, 53% WR).
     heikenExhaustionFilterEnabled:
       (process.env.HEIKEN_EXHAUSTION_FILTER_ENABLED || 'true').toLowerCase() === 'true',
-    heikenExhaustionMin: Number(process.env.HEIKEN_EXHAUSTION_MIN) || 4,
+    // Narrowed from 4 to 5: count 4 was borderline, allow it through. Block only 5-6.
+    heikenExhaustionMin: Number(process.env.HEIKEN_EXHAUSTION_MIN) || 5,
     heikenExhaustionMax: Number(process.env.HEIKEN_EXHAUSTION_MAX) || 6,
 
     // Require at least one strong signal: model prob >= 80% OR edge >= 8%.
     // 157-trade data: 60-80% prob with <8% edge was bleeding money.
     requireStrongSignalEnabled:
       (process.env.REQUIRE_STRONG_SIGNAL_ENABLED || 'true').toLowerCase() === 'true',
-    // Loosened from 0.80/0.08: was blocking 91% of ticks. 0.70/0.06 should cut ~30-40% instead.
-    strongProbThreshold: Number(process.env.STRONG_PROB_THRESHOLD) || 0.70,
-    strongEdgeThreshold: Number(process.env.STRONG_EDGE_THRESHOLD) || 0.06,
+    // Loosened further: still blocking 80% of ticks at 0.70/0.06. 0.65/0.04 should open more volume.
+    strongProbThreshold: Number(process.env.STRONG_PROB_THRESHOLD) || 0.65,
+    strongEdgeThreshold: Number(process.env.STRONG_EDGE_THRESHOLD) || 0.04,
 
     // Time filters
     // For 5m, avoid new entries too close to settlement (rollover risk)

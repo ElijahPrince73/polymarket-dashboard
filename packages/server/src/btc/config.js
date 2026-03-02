@@ -330,8 +330,9 @@ export const CONFIG = {
     // 157-trade data: 60-80% prob with <8% edge was bleeding money.
     requireStrongSignalEnabled:
       (process.env.REQUIRE_STRONG_SIGNAL_ENABLED || 'true').toLowerCase() === 'true',
-    strongProbThreshold: Number(process.env.STRONG_PROB_THRESHOLD) || 0.80,
-    strongEdgeThreshold: Number(process.env.STRONG_EDGE_THRESHOLD) || 0.08,
+    // Loosened from 0.80/0.08: was blocking 91% of ticks. 0.70/0.06 should cut ~30-40% instead.
+    strongProbThreshold: Number(process.env.STRONG_PROB_THRESHOLD) || 0.70,
+    strongEdgeThreshold: Number(process.env.STRONG_EDGE_THRESHOLD) || 0.06,
 
     // Time filters
     // For 5m, avoid new entries too close to settlement (rollover risk)

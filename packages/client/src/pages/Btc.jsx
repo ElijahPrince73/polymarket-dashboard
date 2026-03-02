@@ -168,6 +168,7 @@ export default function Btc() {
   const { data: killSwitch, refetch: refetchKill } = useApi('/api/btc/kill-switch/status');
   const { data: trades, refetch: refetchTrades } = useApi('/api/btc/trades');
   const { data: openOrders, refetch: refetchOpenOrders } = useApi('/api/btc/live/open-orders');
+  const { data: portfolio } = useApi('/api/btc/portfolio');
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sideFilter, setSideFilter] = useState('ALL');
@@ -214,7 +215,10 @@ export default function Btc() {
   const visibleTrades = filteredTrades.slice(0, pageSize);
   const chartData = buildPnlSeries(sortedTrades);
 
-  const balance = Number(status?.balance?.balance || 0);
+  const isLive = String(status?.mode || '').toUpperCase() === 'LIVE';
+  const balance = isLive
+    ? Number(portfolio?.collateral?.balance || status?.balance?.balance || 0)
+    : Number(status?.balance?.balance || 0);
   const realized = Number(status?.balance?.realized || 0);
   const winRate = Number(status?.ledgerSummary?.winRate || 0);
   const totalTrades = Number(status?.ledgerSummary?.totalTrades || 0);

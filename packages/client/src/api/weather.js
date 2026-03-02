@@ -24,6 +24,14 @@ export function triggerWeatherTick() {
   return request('/api/weather/tick', { method: 'POST' });
 }
 
+export function startWeatherTrading() {
+  return request('/api/weather/trading/start', { method: 'POST' });
+}
+
+export function stopWeatherTrading() {
+  return request('/api/weather/trading/stop', { method: 'POST' });
+}
+
 export function killWeather() {
   return request('/api/weather/kill', { method: 'POST' });
 }

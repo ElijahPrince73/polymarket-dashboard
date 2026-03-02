@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { killWeather, setWeatherMode, triggerWeatherTick } from '../api/weather.js';
+import { killWeather, setWeatherMode, startWeatherTrading, stopWeatherTrading, triggerWeatherTick } from '../api/weather.js';
 import StatCard from '../components/StatCard.jsx';
 import StatusPill from '../components/StatusPill.jsx';
 import useApi from '../hooks/useApi.js';
@@ -68,6 +68,16 @@ export default function Weather() {
     await refreshAll();
   }
 
+  async function handleStart() {
+    await startWeatherTrading();
+    await refreshAll();
+  }
+
+  async function handleStop() {
+    await stopWeatherTrading();
+    await refreshAll();
+  }
+
   async function handleTick() {
     await triggerWeatherTick();
     await refreshAll();
@@ -110,6 +120,7 @@ export default function Weather() {
     new Set((trades || []).map((trade) => String(trade.city || 'Unknown')).filter(Boolean))
   ).sort();
 
+  const isTrading = !!status?.tradingEnabled;
   const balance = Number(status?.bankroll || 0);
   const realized = Number(rolling.pnl || 0);
   const openTrades = Number(status?.openTrades || 0);
@@ -141,10 +152,10 @@ export default function Weather() {
         <div className="ml-auto flex gap-2">
           <button
             type="button"
-            onClick={handleTick}
-            disabled={!status || status.tradingEnabled === false}
+            onClick={handleStart}
+            disabled={isTrading}
             className={`rounded-md px-4 py-1.5 text-sm font-medium text-white ${
-              status?.tradingEnabled === false
+              isTrading
                 ? 'cursor-not-allowed bg-slate-600 opacity-50'
                 : 'bg-emerald-600 hover:bg-emerald-500'
             }`}
@@ -153,10 +164,22 @@ export default function Weather() {
           </button>
           <button
             type="button"
-            onClick={handleKill}
-            className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-500"
+            onClick={handleStop}
+            disabled={!isTrading}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium text-white ${
+              !isTrading
+                ? 'cursor-not-allowed bg-slate-600 opacity-50'
+                : 'bg-red-600 hover:bg-red-500'
+            }`}
           >
             Stop
+          </button>
+          <button
+            type="button"
+            onClick={handleTick}
+            className="rounded-md bg-slate-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-600"
+          >
+            Run Tick
           </button>
         </div>
       </section>

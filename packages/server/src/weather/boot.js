@@ -16,6 +16,7 @@ let lastTickAt = null;
 let lastTickResult = null;
 let tickInFlight = null;
 let tickTimer = null;
+let tradingEnabled = true;
 
 const tickIntervalMs = 30 * 60 * 1000;
 
@@ -72,7 +73,7 @@ export function mountRoutes(app) {
     const liveBalance = live ? await getBalance() : null;
     const openTrades = await db.getOpenTrades();
     res.json({
-      tradingEnabled: config.MIN_EDGE >= 0,
+      tradingEnabled,
       tradingMode: isLiveMode() ? "live" : "paper",
       envTradingMode: live ? "live" : "paper",
       bankroll,
@@ -124,6 +125,26 @@ export function mountRoutes(app) {
     } catch (error) {
       res.status(500).json({ error: error?.message || "Tick failed" });
     }
+  });
+
+  router.post("/trading/start", (_req, res) => {
+    tradingEnabled = true;
+    // Restart tick timer if not running
+    if (!tickTimer) {
+      tickTimer = setInterval(() => {
+        if (tradingEnabled) {
+          runTickCycle().catch((error) => {
+            console.error(`[Weather] Scheduled tick failed:`, error);
+          });
+        }
+      }, tickIntervalMs);
+    }
+    res.json({ ok: true, tradingEnabled: true });
+  });
+
+  router.post("/trading/stop", async (_req, res) => {
+    tradingEnabled = false;
+    res.json({ ok: true, tradingEnabled: false });
   });
 
   router.post("/mode", (req, res) => {

@@ -104,7 +104,7 @@ export default function Btc() {
   const realized = Number(status?.balance?.realized || 0);
   const winRate = Number(status?.ledgerSummary?.winRate || 0);
   const totalTrades = Number(status?.ledgerSummary?.totalTrades || 0);
-  const openTrades = Number(openOrders?.length || 0);
+  const openTrades = status?.guardrails?.hasOpenPosition ? 1 : Number(openOrders?.length || 0);
 
   return (
     <div className="space-y-6">

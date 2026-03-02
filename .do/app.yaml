@@ -1,0 +1,19 @@
+name: polymarket-dashboard
+region: nyc
+services:
+  - name: web
+    github:
+      repo: ElijahPrince73/polymarket-dashboard
+      branch: main
+      deploy_on_push: true
+    build_command: npm install && npm run build
+    run_command: npm start
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: professional-xs
+    http_port: 4000
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"

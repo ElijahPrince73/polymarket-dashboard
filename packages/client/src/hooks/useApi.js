@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export default function useApi(url) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const initialFetchDone = useRef(false);
 
   const unwrapResponse = useCallback((payload) => {
     if (payload && typeof payload === 'object' && payload.success === true && 'data' in payload) {
@@ -13,8 +14,10 @@ export default function useApi(url) {
   }, []);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    // Only show loading spinner on initial fetch, not on polls
+    if (!initialFetchDone.current) {
+      setLoading(true);
+    }
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -22,10 +25,12 @@ export default function useApi(url) {
       }
       const json = await response.json();
       setData(unwrapResponse(json));
+      setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
     } finally {
+      initialFetchDone.current = true;
       setLoading(false);
     }
   }, [url, unwrapResponse]);

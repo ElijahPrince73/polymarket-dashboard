@@ -166,9 +166,11 @@ function buildGateChecks(status) {
 export default function Btc() {
   const { data: status, loading, refetch: refetchStatus } = useApi('/api/btc/status');
   const { data: killSwitch, refetch: refetchKill } = useApi('/api/btc/kill-switch/status');
-  const { data: trades, refetch: refetchTrades } = useApi('/api/btc/trades');
+  const { data: paperTrades, refetch: refetchTrades } = useApi('/api/btc/trades');
   const { data: openOrders, refetch: refetchOpenOrders } = useApi('/api/btc/live/open-orders');
   const { data: portfolio } = useApi('/api/btc/portfolio');
+  const { data: liveAnalytics } = useApi('/api/btc/live/analytics');
+  const { data: liveTrades } = useApi('/api/btc/live/trades');
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sideFilter, setSideFilter] = useState('ALL');
@@ -216,13 +218,39 @@ export default function Btc() {
   const chartData = buildPnlSeries(sortedTrades);
 
   const isLive = String(status?.mode || '').toUpperCase() === 'LIVE';
+
+  // Mode-aware stats
   const balance = isLive
-    ? Number(portfolio?.collateral?.balance || status?.balance?.balance || 0)
+    ? Number(portfolio?.collateral?.balance || 0)
     : Number(status?.balance?.balance || 0);
-  const realized = Number(status?.balance?.realized || 0);
-  const winRate = Number(status?.ledgerSummary?.winRate || 0);
-  const totalTrades = Number(status?.ledgerSummary?.totalTrades || 0);
+  const realized = isLive
+    ? Number(liveAnalytics?.realizedTotal || 0)
+    : Number(status?.balance?.realized || 0);
+  const totalTrades = isLive
+    ? Number(liveAnalytics?.tradesCount || 0)
+    : Number(status?.ledgerSummary?.totalTrades || 0);
+  const winRate = isLive
+    ? 0 // Live trades don't track win/loss the same way
+    : Number(status?.ledgerSummary?.winRate || 0);
   const openTrades = status?.guardrails?.hasOpenPosition ? 1 : Number(openOrders?.length || 0);
+
+  // Mode-aware trades for table/chart
+  const trades = useMemo(() => {
+    if (!isLive) return paperTrades || [];
+    // Normalize live CLOB trades to match paper trade shape
+    return (liveTrades || []).map((t, i) => ({
+      id: t.id || `live-${i}`,
+      entryTime: t.match_time || t.last_update,
+      exitTime: t.match_time || t.last_update,
+      timestamp: t.match_time || t.last_update,
+      side: String(t.trader_side || t.side || '--').toUpperCase(),
+      entryPrice: Number(t.price || 0),
+      exitPrice: Number(t.price || 0),
+      pnl: null, // CLOB trades don't have per-trade PnL
+      exitReason: t.status || '--',
+      contractSize: Number(t.size || 0) * Number(t.price || 0),
+    }));
+  }, [isLive, paperTrades, liveTrades]);
 
   const gateChecks = useMemo(() => buildGateChecks(status), [status]);
 
@@ -290,7 +318,7 @@ export default function Btc() {
           value={formatCurrency(realized)}
           color={realized >= 0 ? 'profit' : 'loss'}
         />
-        <StatCard label="Win Rate" value={`${winRate.toFixed(2)}%`} color={winRate >= 50 ? 'profit' : 'neutral'} />
+        <StatCard label="Win Rate" value={isLive && winRate === 0 ? '--' : `${winRate.toFixed(2)}%`} color={winRate >= 50 ? 'profit' : 'neutral'} />
         <StatCard label="Total Trades" value={String(totalTrades)} />
         <StatCard label="Open Trades" value={String(openTrades)} />
       </section>

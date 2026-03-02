@@ -70,7 +70,7 @@ export default function BtcDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
           <p className="mb-2 text-xs uppercase tracking-wide text-slate-400">Trading Status</p>
-          <StatusBadge status={status.status || status.tradingStatus || 'Unknown'} />
+          <StatusBadge status={status.tradingEnabled ? 'Running' : status.mode || 'Unknown'} />
         </div>
         <StatCard label="Current Position" value={status.position ?? status.currentPosition ?? 'Flat'} />
         <StatCard label="Total P&L" value={currency(currentPnl)} color={currentPnl >= 0 ? 'profit' : 'loss'} />

@@ -10,13 +10,20 @@ const statusStyles = {
 };
 
 export default function StatusBadge({ status = 'unknown' }) {
-  const normalized = String(status).toLowerCase();
+  // Safely convert to a display string — status may be an object from the API
+  const label =
+    status && typeof status === 'object'
+      ? status.ok
+        ? 'Running'
+        : 'Error'
+      : String(status ?? 'unknown');
+  const normalized = label.toLowerCase();
   const classes =
     statusStyles[normalized] || 'bg-slate-700/40 text-slate-300 border-slate-600';
 
   return (
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${classes}`}>
-      {status}
+      {label}
     </span>
   );
 }

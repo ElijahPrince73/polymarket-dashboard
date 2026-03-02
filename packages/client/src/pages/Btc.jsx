@@ -132,7 +132,7 @@ function buildGateChecks(status) {
     },
     {
       check: 'Time to Settlement',
-      current: rt.timeLeftMin != null ? `${Number(rt.timeLeftMin).toFixed(1)}m` : '--',
+      current: rt.timeLeftMin != null ? (() => { const m = Number(rt.timeLeftMin); const mins = Math.floor(m); const secs = Math.round((m - mins) * 60); return `${mins}m ${secs}s`; })() : '--',
       required: `> ${et.noEntryFinalMinutes || 1.5}m`,
       pass: !isBlocked('too late'),
     },
@@ -350,7 +350,7 @@ export default function Btc() {
             </div>
             <div>
               <p className="text-slate-400">Time Left</p>
-              <p className="text-slate-200">{status.runtime?.timeLeftMin != null ? `${Number(status.runtime.timeLeftMin).toFixed(1)}m` : '--'}</p>
+              <p className="text-slate-200">{status.runtime?.timeLeftMin != null ? (() => { const m = Number(status.runtime.timeLeftMin); const mins = Math.floor(m); const secs = Math.round((m - mins) * 60); return `${mins}m ${secs}s`; })() : '--'}</p>
             </div>
             <div>
               <p className="text-slate-400">BTC Price</p>

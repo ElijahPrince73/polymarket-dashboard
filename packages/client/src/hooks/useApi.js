@@ -39,7 +39,7 @@ export default function useApi(url) {
     };
 
     run();
-    const intervalId = setInterval(run, 15000);
+    const intervalId = setInterval(run, 5000);
 
     return () => {
       isMounted = false;

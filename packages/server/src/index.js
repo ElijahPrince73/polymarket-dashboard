@@ -45,6 +45,10 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+// ── Analytics routes (standalone, no bot dependency) ───────────────────
+import analyticsRouter from './routes/analytics.js';
+app.use('/api/analytics', analyticsRouter);
+
 // ── Boot sequence ──────────────────────────────────────────────────────
 
 async function boot() {

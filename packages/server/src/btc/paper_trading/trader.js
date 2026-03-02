@@ -829,6 +829,13 @@ export class Trader {
         trade.maxUnrealizedPnl = Math.max(maxU, pnlNow);
         trade.minUnrealizedPnl = Math.min(minU, pnlNow);
 
+        // Sync MFE/MAE to the engine's executor so statusService sees live values
+        const execTrade = globalThis.__tradingEngine?.executor?.openTrade;
+        if (execTrade && execTrade.id === trade.id) {
+          execTrade.maxUnrealizedPnl = trade.maxUnrealizedPnl;
+          execTrade.minUnrealizedPnl = trade.minUnrealizedPnl;
+        }
+
         const stopLossPct = CONFIG.paperTrading.stopLossPct ?? 0.25;
         const stopLossAmount = -Math.abs(trade.contractSize * stopLossPct);
         stopLossHit = pnlNow <= stopLossAmount;

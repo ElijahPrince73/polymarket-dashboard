@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -164,7 +164,14 @@ function buildGateChecks(status) {
 }
 
 export default function Btc() {
-  const { data: status, loading, refetch: refetchStatus } = useApi('/api/btc/status');
+  const [hasOpenTrade, setHasOpenTrade] = useState(false);
+  const pollMs = hasOpenTrade ? 1000 : 5000;
+  const { data: status, loading, refetch: refetchStatus } = useApi('/api/btc/status', { pollMs });
+
+  // Track open trade state for dynamic poll rate
+  useEffect(() => {
+    setHasOpenTrade(!!status?.openTrade);
+  }, [status?.openTrade]);
   const { data: killSwitch, refetch: refetchKill } = useApi('/api/btc/kill-switch/status');
   const { data: paperTrades, refetch: refetchTrades } = useApi('/api/btc/trades');
   const { data: openOrders, refetch: refetchOpenOrders } = useApi('/api/btc/live/open-orders');
@@ -334,10 +341,10 @@ export default function Btc() {
               ['Contract Size', formatCurrency(status.openTrade.contractSize)],
               ['Entry Time', formatTime(status.openTrade.entryTime || status.openTrade.timestamp)],
               ['Entry Phase', String(status.openTrade.entryPhase || '--')],
-              ['Unrealized P&L', (() => {
+              ['MFE / MAE', (() => {
                 const mfe = Number(status.openTrade.maxUnrealizedPnl || 0);
                 const mae = Number(status.openTrade.minUnrealizedPnl || 0);
-                return `MFE $${mfe.toFixed(2)} / MAE $${mae.toFixed(2)}`;
+                return `+$${mfe.toFixed(2)} / -$${Math.abs(mae).toFixed(2)}`;
               })()],
               ['Market', String(status.openTrade.marketSlug || status.runtime?.marketSlug || '--').replace('btc-updown-5m-', '')],
               ['Entry Reason', String(status.openTrade.entryReason || '--')],

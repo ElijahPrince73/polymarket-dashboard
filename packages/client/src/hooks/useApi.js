@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-export default function useApi(url) {
+export default function useApi(url, { pollMs = 5000 } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const initialFetchDone = useRef(false);
+  const pollMsRef = useRef(pollMs);
+  pollMsRef.current = pollMs;
 
   const unwrapResponse = useCallback((payload) => {
     if (payload && typeof payload === 'object' && payload.success === true && 'data' in payload) {
@@ -37,18 +39,21 @@ export default function useApi(url) {
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId;
 
     const run = async () => {
       if (!isMounted) return;
       await fetchData();
+      if (isMounted) {
+        timeoutId = setTimeout(run, pollMsRef.current);
+      }
     };
 
     run();
-    const intervalId = setInterval(run, 5000);
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      clearTimeout(timeoutId);
     };
   }, [fetchData]);
 

@@ -19,7 +19,9 @@ export async function assembleStatus() {
   const engine = globalThis.__tradingEngine ?? null;
   const modeManager = globalThis.__modeManager ?? null;
 
-  const openTrade = getOpenTrade();
+  // Prefer engine's live executor open trade (has real-time MFE/MAE),
+  // fall back to paper trader, then ledger.
+  const openTrade = engine?.executor?.openTrade ?? getOpenTrade();
 
   // Entry debug from unified engine
   const entryDebug = engine?.lastEntryStatus ?? null;

@@ -162,7 +162,7 @@ export default function Btc() {
       </section>
 
       {/* Live Trading Status */}
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+      {status && <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Live Status</h3>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
           {[
@@ -204,7 +204,7 @@ export default function Btc() {
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       <section className="rounded-lg border border-slate-700 bg-slate-900">
         <div className="flex gap-2 border-b border-slate-700 p-3">

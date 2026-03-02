@@ -398,8 +398,8 @@ export async function startApp({ skipServer = false } = {}) {
     try { _httpServer = startUIServer(); } catch (err) { console.error('Failed to start UI server:', err); }
   }
 
-  console.log(`--- Bot Started ---`);
-  console.log(`Mode: ${modeManager.getMode()} | Live available: ${modeManager.isLiveAvailable()}`);
+  if (process.env.BTC_VERBOSE) console.log(`--- Bot Started ---`);
+  if (process.env.BTC_VERBOSE) console.log(`Mode: ${modeManager.getMode()} | Live available: ${modeManager.isLiveAvailable()}`);
   // Auto-start trading on boot if configured (avoids manual click after every deploy)
   const autoStart = (process.env.AUTO_START_TRADING || 'true').toLowerCase() === 'true';
   if (autoStart && !engine.tradingEnabled) {
@@ -407,14 +407,14 @@ export async function startApp({ skipServer = false } = {}) {
     console.log('[Boot] Auto-started trading (AUTO_START_TRADING=true)');
   }
 
-  console.log(`Trading: ${engine.tradingEnabled ? 'ACTIVE' : 'STOPPED (start via UI)'}`);
-  console.log(`BTC feed: Chainlink WS (candles built from ticks).`);
-  console.log(`UI Server running on http://localhost:${CONFIG.uiPort}. Use 'ngrok http ${CONFIG.uiPort}' for remote access.`);
+  if (process.env.BTC_VERBOSE) console.log(`Trading: ${engine.tradingEnabled ? 'ACTIVE' : 'STOPPED (start via UI)'}`);
+  if (process.env.BTC_VERBOSE) console.log(`BTC feed: Chainlink WS (candles built from ticks).`);
+  if (process.env.BTC_VERBOSE) console.log(`UI Server running on http://localhost:${CONFIG.uiPort}. Use 'ngrok http ${CONFIG.uiPort}' for remote access.`);
 
   // Phase 4 status
-  if (stateManager) console.log(`[Phase 4] State recovery: ${crashRecovery?.crashed ? 'RECOVERED' : 'clean start'}`);
-  if (webhookService?.isConfigured()) console.log(`[Phase 4] Webhooks: enabled (${webhookService.type})`);
-  if (tradingLock?.isLockHolder()) console.log(`[Phase 4] Trading lock: held (ID: ${tradingLock.instanceId})`);
+  if (process.env.BTC_VERBOSE && stateManager) console.log(`[Phase 4] State recovery: ${crashRecovery?.crashed ? 'RECOVERED' : 'clean start'}`);
+  if (process.env.BTC_VERBOSE && webhookService?.isConfigured()) console.log(`[Phase 4] Webhooks: enabled (${webhookService.type})`);
+  if (process.env.BTC_VERBOSE && tradingLock?.isLockHolder()) console.log(`[Phase 4] Trading lock: held (ID: ${tradingLock.instanceId})`);
 
   let prevCurrentPrice = null;
   const csvHeader = ["timestamp", "time_left", "regime", "signal", "model_up", "model_down", "mkt_up", "mkt_down", "edge_up", "edge_down", "rec"];

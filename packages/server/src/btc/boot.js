@@ -3,8 +3,12 @@
  * Thin wrapper that exports mountRoutes(app), initialize(), and shutdown()
  * for the unified dashboard server.
  */
+import { installQuietMode } from './lib/logger.js';
 import { mountBtcRoutes } from './ui/server.js';
 import { startApp } from './index.js';
+
+// Silence BTC verbose logs in unified mode
+installQuietMode();
 
 let _engine = null;
 let _modeManager = null;

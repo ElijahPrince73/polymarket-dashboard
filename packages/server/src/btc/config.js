@@ -209,20 +209,24 @@ export const CONFIG = {
       'true',
     // Raised from $4 to $5: with larger contracts, the $4 start was activating
     // on small peaks. $5 gives more room before trailing kicks in.
-    trailingStartUsd: Number(process.env.TRAILING_TAKE_PROFIT_START_USD) || 5,
+    // Raised to $7: with larger contracts and wider stop loss, give trades more room
+    // before trailing activates. Avoids premature exits on small bounces.
+    trailingStartUsd: Number(process.env.TRAILING_TAKE_PROFIT_START_USD) || 7,
     // Base drawdown for profits $4-8. Tiered drawdown scales up for bigger winners.
+    // Base drawdown raised to $2.50 for the $7-8 range
     trailingDrawdownUsd:
-      Number(process.env.TRAILING_TAKE_PROFIT_DRAWDOWN_USD) || 2.00,
+      Number(process.env.TRAILING_TAKE_PROFIT_DRAWDOWN_USD) || 2.50,
 
     // Tiered trailing drawdown: ride bigger winners with more room.
     // Sorted descending by threshold. First match wins.
     // Larger contracts mean bigger absolute PnL swings — tiers scaled up.
     // Base drawdown stays at $2.00 (Polymarket fluctuates a lot).
     trailingDrawdownTiers: [
-      { above: 25, dd: 5.0 },  // PnL >$25: give $5 room (ride the monsters)
-      { above: 15, dd: 4.0 },  // PnL $15-25: give $4 room
-      { above: 8, dd: 3.0 },   // PnL $8-15: give $3 room
-      // Below $8: uses base trailingDrawdownUsd ($2.00)
+      { above: 40, dd: 7.0 },  // PnL >$40: ride the monsters
+      { above: 25, dd: 5.0 },  // PnL $25-40: big winners
+      { above: 15, dd: 4.0 },  // PnL $15-25: solid winners
+      { above: 8, dd: 3.0 },   // PnL $8-15: medium winners
+      // Below $8: uses base trailingDrawdownUsd ($2.50)
     ],
 
     // Legacy/unused

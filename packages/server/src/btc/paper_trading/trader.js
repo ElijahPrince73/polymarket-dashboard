@@ -375,6 +375,10 @@ export class Trader {
       marketSlug &&
       this.skipMarketUntilNextSlug === marketSlug,
     );
+    if (this.skipMarketUntilNextSlug && marketSlug && this.skipMarketUntilNextSlug !== marketSlug) {
+      console.log(`[BTC] Skip market cleared: was ${this.skipMarketUntilNextSlug}, now ${marketSlug}`);
+      this.skipMarketUntilNextSlug = null;
+    }
 
     // Require core indicators to be populated (prevents 50/50 / undefined warm states)
     const ind = signals.indicators ?? {};
@@ -1192,6 +1196,7 @@ export class Trader {
     // This avoids getting chopped multiple times in the same 5m window.
     if (String(reason || '').startsWith('Max Loss') && trade?.marketSlug) {
       this.skipMarketUntilNextSlug = trade.marketSlug;
+      console.log(`[BTC] Skip market set: ${trade.marketSlug} (after ${reason})`);
     }
 
     trade.exitPrice = exitPrice;

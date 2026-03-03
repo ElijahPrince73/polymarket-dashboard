@@ -341,10 +341,11 @@ export default function Btc() {
               ['Contract Size', formatCurrency(status.openTrade.contractSize)],
               ['Entry Time', formatTime(status.openTrade.entryTime || status.openTrade.timestamp)],
               ['Entry Phase', String(status.openTrade.entryPhase || '--')],
-              ['MFE / MAE', (() => {
-                const mfe = Number(status.openTrade.maxUnrealizedPnl || 0);
-                const mae = Number(status.openTrade.minUnrealizedPnl || 0);
-                return `+$${mfe.toFixed(2)} / -$${Math.abs(mae).toFixed(2)}`;
+              ['Unrealized P&L', (() => {
+                const pnl = status.openTrade.unrealizedPnl ?? status.openTrade.pnlNow ?? null;
+                if (pnl == null) return '--';
+                const val = Number(pnl);
+                return `${val >= 0 ? '+' : ''}$${val.toFixed(2)}`;
               })()],
               ['Market', String(status.openTrade.marketSlug || status.runtime?.marketSlug || '--').replace('btc-updown-5m-', '')],
               ['Entry Reason', String(status.openTrade.entryReason || '--')],
@@ -354,7 +355,9 @@ export default function Btc() {
                 <p className={
                   label === 'Side'
                     ? value === 'UP' ? 'font-semibold text-emerald-400' : 'font-semibold text-red-400'
-                    : 'text-slate-200'
+                    : label === 'Unrealized P&L'
+                      ? value.startsWith('+') ? 'font-semibold text-emerald-400' : value.startsWith('-') ? 'font-semibold text-red-400' : 'text-slate-200'
+                      : 'text-slate-200'
                 }>{value}</p>
               </div>
             ))}

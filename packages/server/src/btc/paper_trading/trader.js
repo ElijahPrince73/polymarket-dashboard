@@ -408,7 +408,7 @@ export class Trader {
     if (inLossCooldown) blockers.push(`Loss cooldown (${lossCooldownSec}s)`);
     if (inWinCooldown) blockers.push(`Win cooldown (${winCooldownSec}s)`);
     if (inSkipMarket)
-      blockers.push('Skip market after loss (wait for next 5m)');
+      blockers.push('Skip market after Max Loss (wait for next 5m)');
     if (strictRec && signals.rec?.action !== 'ENTER')
       blockers.push(`Rec=${signals.rec?.action || 'NONE'} (strict)`);
     if (!strictRec && signals.rec?.action !== 'ENTER')
@@ -1157,9 +1157,9 @@ export class Trader {
       else this.lastWinAtMs = Date.now();
     }
 
-    // After ANY losing trade, skip re-entry for the remainder of this market slug.
+    // After a Max Loss exit, skip re-entry for the remainder of this market slug.
     // This avoids getting chopped multiple times in the same 5m window.
-    if (pnl < 0 && trade?.marketSlug) {
+    if (String(reason || '').startsWith('Max Loss') && trade?.marketSlug) {
       this.skipMarketUntilNextSlug = trade.marketSlug;
     }
 

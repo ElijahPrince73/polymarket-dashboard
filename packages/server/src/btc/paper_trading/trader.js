@@ -371,9 +371,7 @@ export class Trader {
 
     // If we just hit a Max Loss stop in this market slug, skip entries until the slug changes.
     const skipAfterMaxLoss =
-      CONFIG.paperTrading.skipMarketAfterMaxLoss ?? false;
     const inSkipMarket = Boolean(
-      skipAfterMaxLoss &&
       this.skipMarketUntilNextSlug &&
       marketSlug &&
       this.skipMarketUntilNextSlug === marketSlug,
@@ -410,7 +408,7 @@ export class Trader {
     if (inLossCooldown) blockers.push(`Loss cooldown (${lossCooldownSec}s)`);
     if (inWinCooldown) blockers.push(`Win cooldown (${winCooldownSec}s)`);
     if (inSkipMarket)
-      blockers.push('Skip market after Max Loss (wait for next 5m) ');
+      blockers.push('Skip market after loss (wait for next 5m)');
     if (strictRec && signals.rec?.action !== 'ENTER')
       blockers.push(`Rec=${signals.rec?.action || 'NONE'} (strict)`);
     if (!strictRec && signals.rec?.action !== 'ENTER')
@@ -1159,9 +1157,9 @@ export class Trader {
       else this.lastWinAtMs = Date.now();
     }
 
-    // If we stopped out, optionally skip re-entry for the remainder of this market slug.
+    // After ANY losing trade, skip re-entry for the remainder of this market slug.
     // This avoids getting chopped multiple times in the same 5m window.
-    if (String(reason || '').startsWith('Max Loss') && trade?.marketSlug) {
+    if (pnl < 0 && trade?.marketSlug) {
       this.skipMarketUntilNextSlug = trade.marketSlug;
     }
 

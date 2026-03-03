@@ -411,7 +411,7 @@ export class Trader {
     if (inLossCooldown) blockers.push(`Loss cooldown (${lossCooldownSec}s)`);
     if (inWinCooldown) blockers.push(`Win cooldown (${winCooldownSec}s)`);
     if (inSkipMarket)
-      blockers.push('Skip market after Max Loss (wait for next 5m)');
+      blockers.push('One trade per market (wait for next 5m)');
     if (strictRec && signals.rec?.action !== 'ENTER')
       blockers.push(`Rec=${signals.rec?.action || 'NONE'} (strict)`);
     if (!strictRec && signals.rec?.action !== 'ENTER')
@@ -1080,11 +1080,10 @@ export class Trader {
       }
 
       if (shouldExit) {
-        // If this is a Max Loss exit, set skip-market BEFORE closing
-        // to guarantee it's set before the next tick can evaluate entry.
-        if (String(exitReason || '').startsWith('Max Loss') && marketSlug) {
+        // One trade per market: set skip BEFORE closing to guarantee
+        // it's set before the next tick can evaluate entry.
+        if (marketSlug) {
           this.skipMarketUntilNextSlug = marketSlug;
-          console.log(`[BTC] Skip market set (pre-close): ${marketSlug} (after ${exitReason})`);
         }
 
         const exitPrice = effectivePriceForSide(trade.side);
@@ -1204,11 +1203,11 @@ export class Trader {
       else this.lastWinAtMs = Date.now();
     }
 
-    // After a Max Loss exit, skip re-entry for the remainder of this market slug.
-    // Belt-and-suspenders: also set here in case pre-close didn't catch it.
-    if (String(reason || '').startsWith('Max Loss') && trade?.marketSlug) {
+    // One trade per market: after ANY exit (win or lose), skip the rest of this market.
+    // Prevents giving back gains with follow-up trades in the same 5-minute window.
+    if (trade?.marketSlug) {
       this.skipMarketUntilNextSlug = trade.marketSlug;
-      console.log(`[BTC] Skip market set (closeTrade): ${trade.marketSlug} (after ${reason})`);
+      console.log(`[BTC] Skip market set (one-trade-per-market): ${trade.marketSlug} (after ${reason})`);
     }
 
     trade.exitPrice = exitPrice;

@@ -138,12 +138,13 @@ export const CONFIG = {
     // Example: $80 trade * 0.20 = $16 max loss; $250 trade * 0.20 = $40 (ceiling).
     dynamicStopLossEnabled:
       (process.env.DYNAMIC_STOP_LOSS_ENABLED || 'true').toLowerCase() === 'true',
-    // Tightened from 0.12 to 0.10: avg max loss was $9.82 across 63 trades. Shaves ~$1-2 per loss.
-    // Widened from 10% to 15%: stop-outs were killing correct-direction trades.
-    // At $137 contracts, 15% = ~$20 max loss. Gives trades room to breathe.
-    dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT) || 0.18,
-    minMaxLossUsd: Number(process.env.MIN_MAX_LOSS_USD) || 15,
-    maxMaxLossUsd: Number(process.env.MAX_MAX_LOSS_USD) || 30,
+    // Tightened from 18% to 12%: 101-trade analysis showed max loss trades (-$521)
+    // wiping all trailing TP profit (+$503). 75% of max losses never went green.
+    // At $120 position: 12% = $14.40 max loss (was $21.60 at 18%).
+    // At $6 position ($50 balance): 12% = $0.72
+    dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT) || 0.12,
+    minMaxLossUsd: Number(process.env.MIN_MAX_LOSS_USD) || 3,
+    maxMaxLossUsd: Number(process.env.MAX_MAX_LOSS_USD) || 20,
 
     // Max-loss grace (optional): when pnl breaches -maxLossUsdPerTrade, allow a short grace window
     // to recover (helps avoid wick/chop stop-outs) *only when conditions are supportive*.
@@ -157,6 +158,14 @@ export const CONFIG = {
       (
         process.env.MAX_LOSS_GRACE_REQUIRE_MODEL_SUPPORT || 'true'
       ).toLowerCase() === 'true',
+
+    // Quick stop: if trade drops X% of position within first N seconds, exit immediately.
+    // 101-trade analysis showed 75% of max-loss trades never went green — bad entries.
+    // At $120 position: 4% = $4.80 threshold. At $6 ($50 balance): $0.24 threshold.
+    quickStopEnabled:
+      (process.env.QUICK_STOP_ENABLED || 'true').toLowerCase() === 'true',
+    quickStopSeconds: Number(process.env.QUICK_STOP_SECONDS) || 5,
+    quickStopPct: Number(process.env.QUICK_STOP_PCT) || 0.04,
 
     // Cooldown after a losing trade (seconds): prevents rapid back-to-back losses.
     // Reduced cooldowns for high-frequency

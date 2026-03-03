@@ -196,6 +196,21 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
   const minHoldSeconds = config.minHoldBeforeStopSeconds ?? 0;
   const withinMinHold = isNum(minHoldSeconds) && minHoldSeconds > 0 && isNum(tradeAgeSec) && tradeAgeSec < minHoldSeconds;
 
+  // ── 2c. Quick stop: if trade drops fast early, cut immediately ──
+  // 75% of max-loss trades never went green. Detect bad entries early and cut them.
+  const quickStopEnabled = config.quickStopEnabled ?? true;
+  const quickStopSeconds = config.quickStopSeconds ?? 5;
+  const quickStopPct = config.quickStopPct ?? 0.04; // 4% of position
+  if (quickStopEnabled && isNum(tradeAgeSec) && tradeAgeSec <= quickStopSeconds
+      && pnlNow !== null && isNum(position.contractSize) && position.contractSize > 0) {
+    const quickStopThreshold = -(position.contractSize * quickStopPct);
+    if (pnlNow <= quickStopThreshold) {
+      const lossAmt = Math.abs(pnlNow).toFixed(2);
+      result.decision = { reason: `Quick Stop ($${lossAmt} in ${tradeAgeSec.toFixed(0)}s)` };
+      return result;
+    }
+  }
+
   // ── 3. Max loss with grace window ────────────────────────────────
   const maxLossUsd = computeMaxLossUsd(position.contractSize, config);
   const graceEnabled = config.maxLossGraceEnabled ?? false;

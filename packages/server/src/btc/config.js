@@ -216,19 +216,22 @@ export const CONFIG = {
       (process.env.DYNAMIC_TRAILING_ENABLED || 'true').toLowerCase() === 'true',
 
     // Trailing start threshold as % of position size
-    trailingStartPct: Number(process.env.TRAILING_START_PCT) || 0.04,  // 4%
+    // Lowered from 4% to 3%: activate trailing sooner to lock in gains earlier
+    trailingStartPct: Number(process.env.TRAILING_START_PCT) || 0.03,  // 3%
 
     // Base trailing drawdown as % of position size
-    trailingDrawdownPct: Number(process.env.TRAILING_DRAWDOWN_PCT) || 0.017, // 1.7%
+    // Tightened from 1.7% to 1.2%: give back less on small winners
+    trailingDrawdownPct: Number(process.env.TRAILING_DRAWDOWN_PCT) || 0.012, // 1.2%
 
     // Tiered trailing drawdown (% of position). Thresholds are also % of position.
     // Sorted descending by threshold. First match wins.
+    // Tightened ~30% across all tiers to capture more profit.
     trailingDrawdownTiersPct: [
-      { abovePct: 0.33, ddPct: 0.058 },  // PnL >33% of position: ride the monsters
-      { abovePct: 0.21, ddPct: 0.042 },  // PnL 21-33%: big winners
-      { abovePct: 0.125, ddPct: 0.033 }, // PnL 12.5-21%: solid winners
-      { abovePct: 0.067, ddPct: 0.025 }, // PnL 6.7-12.5%: medium winners
-      // Below 6.7%: uses base trailingDrawdownPct (1.7%)
+      { abovePct: 0.33, ddPct: 0.042 },  // PnL >33% of position: ride the monsters
+      { abovePct: 0.21, ddPct: 0.030 },  // PnL 21-33%: big winners
+      { abovePct: 0.125, ddPct: 0.023 }, // PnL 12.5-21%: solid winners
+      { abovePct: 0.067, ddPct: 0.017 }, // PnL 6.7-12.5%: medium winners
+      // Below 6.7%: uses base trailingDrawdownPct (1.2%)
     ],
 
     // Fallback fixed-dollar values (used when dynamicTrailingEnabled=false or contractSize unavailable)

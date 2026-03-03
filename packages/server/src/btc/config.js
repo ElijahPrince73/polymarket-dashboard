@@ -245,6 +245,9 @@ export const CONFIG = {
     // Realistic paper trading simulation (approximate live market conditions)
     // Fee simulation: 200 bps = 2% (Polymarket maker fee)
     simFeeRateBps: Number(process.env.SIM_FEE_RATE_BPS) || 200,
+    simLatencyDriftPct: Number(process.env.SIM_LATENCY_DRIFT_PCT) || 0.002, // 0-0.2% from fill delay
+    simPartialFillRate: Number(process.env.SIM_PARTIAL_FILL_RATE) || 0.05, // 5% chance of partial
+    simRejectRate: Number(process.env.SIM_REJECT_RATE) || 0.03, // 3% chance of rejection
     // Slippage: random 0-0.3% adverse price movement on entry/exit
     simSlippagePct: Number(process.env.SIM_SLIPPAGE_PCT) || 0.003,
 

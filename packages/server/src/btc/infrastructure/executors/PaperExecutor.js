@@ -121,6 +121,13 @@ export class PaperExecutor extends OrderExecutor {
     }
 
     // ── Realistic simulation adjustments ──────────────────────
+    // 0. Latency simulation: real orders take 1-3s. Price drifts during this time.
+    // Simulate with additional random adverse movement (0-0.2%)
+    const simLatencyDriftPct = CONFIG.paperTrading.simLatencyDriftPct ?? 0.002;
+    const latencyDrift = 1 + (Math.random() * simLatencyDriftPct);
+    fillPrice = fillPrice * latencyDrift;
+    fillShares = sizeUsd / fillPrice;
+
     // 1. Fee simulation: ~2% maker fee on Polymarket (applied as worse fill price)
     const simFeeRate = CONFIG.paperTrading.simFeeRateBps ?? 200; // 200 bps = 2%
     const feeMultiplier = 1 + (simFeeRate / 10000);
@@ -132,6 +139,21 @@ export class PaperExecutor extends OrderExecutor {
     const slippage = 1 + (Math.random() * simSlippagePct);
     fillPrice = fillPrice * slippage;
     fillShares = sizeUsd / fillPrice;
+
+    // 3. Partial fill: small chance (5%) of getting only 60-90% filled
+    const partialFillRate = CONFIG.paperTrading.simPartialFillRate ?? 0.05;
+    if (Math.random() < partialFillRate) {
+      const fillRatio = 0.6 + (Math.random() * 0.3);
+      fillShares = fillShares * fillRatio;
+      console.log(`[paper] Partial fill: ${(fillRatio * 100).toFixed(0)}% of ${sizeUsd.toFixed(0)} USD`);
+    }
+
+    // 4. Order rejection: small chance (3%) when spread is wide or price is extreme
+    const rejectRate = CONFIG.paperTrading.simRejectRate ?? 0.03;
+    if (Math.random() < rejectRate) {
+      console.log(`[paper] Simulated order rejection (${(rejectRate * 100).toFixed(0)}% chance)`);
+      return { filled: false, tradeId: null, fillPrice: 0, fillShares: 0, fillSizeUsd: 0 };
+    }
 
     const tradeId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
     const fillSizeUsd = fillShares * fillPrice;
@@ -216,6 +238,11 @@ export class PaperExecutor extends OrderExecutor {
     }
 
     // ── Realistic exit simulation ──────────────────────────────
+    // Latency drift on exit: price moves against you while order processes
+    const simLatencyDriftPct = CONFIG.paperTrading.simLatencyDriftPct ?? 0.002;
+    const exitLatencyDrift = 1 - (Math.random() * simLatencyDriftPct); // Adverse on sells
+    exitPrice = exitPrice * exitLatencyDrift;
+
     // Fee on exit: same rate as entry
     const simFeeRate = CONFIG.paperTrading.simFeeRateBps ?? 200;
     const exitFeeMultiplier = 1 - (simFeeRate / 10000); // Receive less per share

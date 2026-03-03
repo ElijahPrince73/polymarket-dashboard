@@ -185,8 +185,8 @@ export class TradingState {
       }
     }
 
-    // If we hit max loss, skip re-entry for this market slug
-    if (String(reason || '').startsWith('Max Loss') && marketSlug && skipAfterMaxLoss) {
+    // One trade per market: skip re-entry for rest of this market slug after ANY exit
+    if (marketSlug) {
       this.skipMarketUntilNextSlug = marketSlug;
     }
 

@@ -228,12 +228,18 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     blockers.push(`Win cooldown (${winCooldownSec}s)`);
   }
 
-  // ── 8. Skip market after max loss ──────────────────────────────
+  // ── 8. One trade per market: skip rest of 5m window after any exit ──
   const marketSlug = signals.market?.slug;
-  const skipAfterMaxLoss = config.skipMarketAfterMaxLoss ?? false;
-  if (skipAfterMaxLoss && state.skipMarketUntilNextSlug && marketSlug
+  const oneTradePerMarket = config.oneTradePerMarket ?? true;
+  // Clear skip when market slug changes (new 5m market)
+  if (state.skipMarketUntilNextSlug && marketSlug
+      && marketSlug !== 'unknown'
+      && state.skipMarketUntilNextSlug !== marketSlug) {
+    state.skipMarketUntilNextSlug = null;
+  }
+  if (oneTradePerMarket && state.skipMarketUntilNextSlug && marketSlug
       && state.skipMarketUntilNextSlug === marketSlug) {
-    blockers.push('Skip market after Max Loss (wait for next 5m)');
+    blockers.push('One trade per market (wait for next 5m)');
   }
 
   // ── 9. Has open position ───────────────────────────────────────

@@ -182,7 +182,10 @@ export const CONFIG = {
     circuitBreakerCooldownMs: Number(process.env.CIRCUIT_BREAKER_COOLDOWN_MS) || 2 * 60_000, // 2 minutes
 
     // If true: after a Max Loss stopout, do not enter again until the market rolls to the next slug.
-    // Disabled: don't skip markets after a loss — trade the next opportunity
+    // One trade per market: after any exit (win or lose), skip rest of this 5m market.
+    oneTradePerMarket:
+      (process.env.ONE_TRADE_PER_MARKET || 'true').toLowerCase() === 'true',
+    // Legacy: skip only after max loss (superseded by oneTradePerMarket)
     skipMarketAfterMaxLoss:
       (process.env.SKIP_MARKET_AFTER_MAX_LOSS || 'false').toLowerCase() ===
       'true',

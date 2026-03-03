@@ -864,15 +864,25 @@ export class Trader {
       // We still compute opposingMoreLikely because it's used by the conditional stop loss.
       // If you want to re-enable flip exits later, restore the block that sets shouldExit here.
 
-      // Trailing take-profit (recommended): once a trade has meaningful profit,
+      // Trailing take-profit: once a trade has meaningful profit,
       // allow it to run but exit on a pullback from maxUnrealizedPnl.
+      // Dynamic mode: thresholds scale as % of position size (contractSize).
       if (
         !shouldExit &&
         (CONFIG.paperTrading.trailingTakeProfitEnabled ?? false) &&
         pnlNow !== null
       ) {
-        const start = CONFIG.paperTrading.trailingStartUsd ?? 0;
-        const dd = CONFIG.paperTrading.trailingDrawdownUsd ?? 0;
+        const posSize = trade.contractSize ?? 0;
+        const useDynamic = (CONFIG.paperTrading.dynamicTrailingEnabled ?? false) && posSize > 0;
+
+        // Compute start and base drawdown (dynamic % or fixed $)
+        const start = useDynamic
+          ? posSize * (CONFIG.paperTrading.trailingStartPct ?? 0.04)
+          : (CONFIG.paperTrading.trailingStartUsd ?? 0);
+        const baseDd = useDynamic
+          ? posSize * (CONFIG.paperTrading.trailingDrawdownPct ?? 0.017)
+          : (CONFIG.paperTrading.trailingDrawdownUsd ?? 0);
+
         const maxU =
           typeof trade.maxUnrealizedPnl === 'number' &&
           Number.isFinite(trade.maxUnrealizedPnl)
@@ -882,15 +892,35 @@ export class Trader {
         if (
           Number.isFinite(start) &&
           start > 0 &&
-          Number.isFinite(dd) &&
-          dd > 0 &&
+          Number.isFinite(baseDd) &&
+          baseDd > 0 &&
           maxU !== null
         ) {
           if (maxU >= start) {
+            // Tiered drawdown: scale with profit to ride bigger winners.
+            let dd = baseDd;
+            if (useDynamic) {
+              const tiers = CONFIG.paperTrading.trailingDrawdownTiersPct ?? [];
+              for (const tier of tiers) {
+                if (maxU >= posSize * tier.abovePct) {
+                  dd = posSize * tier.ddPct;
+                  break;
+                }
+              }
+            } else {
+              const tiers = CONFIG.paperTrading.trailingDrawdownTiers ?? [];
+              for (const tier of tiers) {
+                if (maxU >= tier.above) {
+                  dd = tier.dd;
+                  break;
+                }
+              }
+            }
+
             const trail = maxU - dd;
             if (pnlNow <= trail) {
               shouldExit = true;
-              exitReason = `Trailing TP (max $${maxU.toFixed(2)}; dd $${dd.toFixed(2)})`;
+              exitReason = `Trailing TP (max $${maxU.toFixed(2)}; dd $${dd.toFixed(2)}${useDynamic ? ` [${(dd / posSize * 100).toFixed(1)}%]` : ''})`;
             }
           }
         }

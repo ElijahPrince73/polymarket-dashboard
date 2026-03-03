@@ -207,26 +207,39 @@ export const CONFIG = {
     trailingTakeProfitEnabled:
       (process.env.TRAILING_TAKE_PROFIT_ENABLED || 'true').toLowerCase() ===
       'true',
-    // Raised from $4 to $5: with larger contracts, the $4 start was activating
-    // on small peaks. $5 gives more room before trailing kicks in.
-    // Raised to $7: with larger contracts and wider stop loss, give trades more room
-    // before trailing activates. Avoids premature exits on small bounces.
+    // Dynamic trailing TP: scales with position size (% of contractSize).
+    // At $1000 balance, 12% stake = $120 position:
+    //   start = $120 * 0.04 = $4.80, base dd = $120 * 0.017 = $2.04
+    // At $2000 balance: start = $9.60, base dd = $4.08
+    // Scales automatically — no manual tuning needed as balance grows.
+    dynamicTrailingEnabled:
+      (process.env.DYNAMIC_TRAILING_ENABLED || 'true').toLowerCase() === 'true',
+
+    // Trailing start threshold as % of position size
+    trailingStartPct: Number(process.env.TRAILING_START_PCT) || 0.04,  // 4%
+
+    // Base trailing drawdown as % of position size
+    trailingDrawdownPct: Number(process.env.TRAILING_DRAWDOWN_PCT) || 0.017, // 1.7%
+
+    // Tiered trailing drawdown (% of position). Thresholds are also % of position.
+    // Sorted descending by threshold. First match wins.
+    trailingDrawdownTiersPct: [
+      { abovePct: 0.33, ddPct: 0.058 },  // PnL >33% of position: ride the monsters
+      { abovePct: 0.21, ddPct: 0.042 },  // PnL 21-33%: big winners
+      { abovePct: 0.125, ddPct: 0.033 }, // PnL 12.5-21%: solid winners
+      { abovePct: 0.067, ddPct: 0.025 }, // PnL 6.7-12.5%: medium winners
+      // Below 6.7%: uses base trailingDrawdownPct (1.7%)
+    ],
+
+    // Fallback fixed-dollar values (used when dynamicTrailingEnabled=false or contractSize unavailable)
     trailingStartUsd: Number(process.env.TRAILING_TAKE_PROFIT_START_USD) || 7,
-    // Base drawdown for profits $4-8. Tiered drawdown scales up for bigger winners.
-    // Base drawdown raised to $2.50 for the $7-8 range
     trailingDrawdownUsd:
       Number(process.env.TRAILING_TAKE_PROFIT_DRAWDOWN_USD) || 2.50,
-
-    // Tiered trailing drawdown: ride bigger winners with more room.
-    // Sorted descending by threshold. First match wins.
-    // Larger contracts mean bigger absolute PnL swings — tiers scaled up.
-    // Base drawdown stays at $2.00 (Polymarket fluctuates a lot).
     trailingDrawdownTiers: [
-      { above: 40, dd: 7.0 },  // PnL >$40: ride the monsters
-      { above: 25, dd: 5.0 },  // PnL $25-40: big winners
-      { above: 15, dd: 4.0 },  // PnL $15-25: solid winners
-      { above: 8, dd: 3.0 },   // PnL $8-15: medium winners
-      // Below $8: uses base trailingDrawdownUsd ($2.50)
+      { above: 40, dd: 7.0 },
+      { above: 25, dd: 5.0 },
+      { above: 15, dd: 4.0 },
+      { above: 8, dd: 3.0 },
     ],
 
     // Legacy/unused

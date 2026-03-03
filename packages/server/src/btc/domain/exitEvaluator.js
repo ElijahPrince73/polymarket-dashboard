@@ -278,10 +278,18 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     return result;
   }
 
-  // ── 5. Trailing take-profit (tiered drawdown) ─────────────────────
+  // ── 5. Trailing take-profit (tiered drawdown, dynamic or fixed) ─────
   if (pnlNow !== null && (config.trailingTakeProfitEnabled ?? false)) {
-    const start = config.trailingStartUsd ?? 0;
-    const baseDd = config.trailingDrawdownUsd ?? 0;
+    const posSize = position.contractSize ?? 0;
+    const useDynamic = (config.dynamicTrailingEnabled ?? false) && posSize > 0;
+
+    const start = useDynamic
+      ? posSize * (config.trailingStartPct ?? 0.04)
+      : (config.trailingStartUsd ?? 0);
+    const baseDd = useDynamic
+      ? posSize * (config.trailingDrawdownPct ?? 0.017)
+      : (config.trailingDrawdownUsd ?? 0);
+
     const maxU = isNum(position.maxUnrealizedPnl)
       ? position.maxUnrealizedPnl
       : null;
@@ -295,23 +303,32 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
       maxU >= start
     ) {
       // Tiered drawdown: scale with profit to ride bigger winners.
-      // Tiers from config or defaults: [threshold, drawdown]
-      const tiers = config.trailingDrawdownTiers ?? [
-        { above: 15, dd: 4.0 },
-        { above: 8, dd: 3.0 },
-      ];
-      let dd = baseDd; // default for lower profits
-      for (const tier of tiers) {
-        if (maxU >= tier.above) {
-          dd = tier.dd;
-          break; // tiers are sorted descending by threshold
+      let dd = baseDd;
+      if (useDynamic) {
+        const tiers = config.trailingDrawdownTiersPct ?? [];
+        for (const tier of tiers) {
+          if (maxU >= posSize * tier.abovePct) {
+            dd = posSize * tier.ddPct;
+            break;
+          }
+        }
+      } else {
+        const tiers = config.trailingDrawdownTiers ?? [
+          { above: 15, dd: 4.0 },
+          { above: 8, dd: 3.0 },
+        ];
+        for (const tier of tiers) {
+          if (maxU >= tier.above) {
+            dd = tier.dd;
+            break;
+          }
         }
       }
 
       const trail = maxU - dd;
       if (pnlNow <= trail) {
         result.decision = {
-          reason: `Trailing TP (max $${maxU.toFixed(2)}; dd $${dd.toFixed(2)})`,
+          reason: `Trailing TP (max $${maxU.toFixed(2)}; dd $${dd.toFixed(2)}${useDynamic ? ` [${(dd / posSize * 100).toFixed(1)}%]` : ''})`,
         };
         return result;
       }

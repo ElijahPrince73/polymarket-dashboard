@@ -85,8 +85,8 @@ function buildGateChecks(status) {
     {
       check: 'RSI',
       current: rt.rsiNow != null ? Number(rt.rsiNow).toFixed(1) : '--',
-      required: et.noTradeRsiMin != null ? `Outside [${et.noTradeRsiMin}, ${et.noTradeRsiMax}]` : '--',
-      pass: !isBlocked('rsi'),
+      required: (et.noTradeRsiMin === 0 && et.noTradeRsiMax === 0) ? 'Disabled' : et.noTradeRsiMin != null ? `Outside [${et.noTradeRsiMin}, ${et.noTradeRsiMax}]` : '--',
+      pass: (et.noTradeRsiMin === 0 && et.noTradeRsiMax === 0) ? true : !isBlocked('rsi'),
     },
     {
       check: 'Spread',
@@ -120,7 +120,7 @@ function buildGateChecks(status) {
     },
     {
       check: 'BTC Impulse (1m)',
-      current: '--',
+      current: rt.spotDelta1mPct != null ? `${(Math.abs(Number(rt.spotDelta1mPct)) * 100).toFixed(3)}%` : '--',
       required: `≥ ${pct(et.minBtcImpulsePct1m)}`,
       pass: !isBlocked('impulse'),
     },

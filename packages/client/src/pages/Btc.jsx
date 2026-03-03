@@ -342,7 +342,21 @@ export default function Btc() {
               ['Entry Time', formatTime(status.openTrade.entryTime || status.openTrade.timestamp)],
               ['Entry Phase', String(status.openTrade.entryPhase || '--')],
               ['Unrealized P&L', (() => {
-                const pnl = status.openTrade.unrealizedPnl ?? status.openTrade.pnlNow ?? null;
+                // Prefer server-computed value, fall back to client-side calc
+                let pnl = status.openTrade.unrealizedPnl ?? status.openTrade.pnlNow ?? null;
+                if (pnl == null) {
+                  // Compute from current poly price and entry
+                  const side = status.openTrade.side;
+                  const entry = Number(status.openTrade.entryPrice || 0);
+                  const size = Number(status.openTrade.contractSize || 0);
+                  const shares = entry > 0 ? size / entry : 0;
+                  const currentPrice = side === 'UP'
+                    ? Number(status.runtime?.polyUp || 0)
+                    : Number(status.runtime?.polyDown || 0);
+                  if (shares > 0 && currentPrice > 0) {
+                    pnl = (currentPrice * shares) - size;
+                  }
+                }
                 if (pnl == null) return '--';
                 const val = Number(pnl);
                 return `${val >= 0 ? '+' : ''}$${val.toFixed(2)}`;

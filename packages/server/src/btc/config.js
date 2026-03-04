@@ -145,7 +145,8 @@ export const CONFIG = {
     // wiping all trailing TP profit (+$503). 75% of max losses never went green.
     // At $120 position: 12% = $14.40 max loss (was $21.60 at 18%).
     // At $6 position ($50 balance): 12% = $0.72
-    dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT) || 0.12,
+    // Tightened from 12% to 8%: simulation showed $76 saved over 20 max-loss trades
+    dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT) || 0.08,
     minMaxLossUsd: Number(process.env.MIN_MAX_LOSS_USD) || 3,
     maxMaxLossUsd: Number(process.env.MAX_MAX_LOSS_USD) || 20,
 
@@ -237,18 +238,18 @@ export const CONFIG = {
     trailingStartPct: Number(process.env.TRAILING_START_PCT) || 0.03,  // 3%
 
     // Base trailing drawdown as % of position size
-    // Tightened from 1.7% to 1.2%: give back less on small winners
-    trailingDrawdownPct: Number(process.env.TRAILING_DRAWDOWN_PCT) || 0.012, // 1.2%
+    // Widened from 1.2% to 1.7%: was cutting winners too early (46% MFE capture)
+    trailingDrawdownPct: Number(process.env.TRAILING_DRAWDOWN_PCT) || 0.017, // 1.7%
 
     // Tiered trailing drawdown (% of position). Thresholds are also % of position.
     // Sorted descending by threshold. First match wins.
-    // Tightened ~30% across all tiers to capture more profit.
+    // Widened ~40% from tightened values to let winners run.
     trailingDrawdownTiersPct: [
-      { abovePct: 0.33, ddPct: 0.042 },  // PnL >33% of position: ride the monsters
-      { abovePct: 0.21, ddPct: 0.030 },  // PnL 21-33%: big winners
-      { abovePct: 0.125, ddPct: 0.023 }, // PnL 12.5-21%: solid winners
-      { abovePct: 0.067, ddPct: 0.017 }, // PnL 6.7-12.5%: medium winners
-      // Below 6.7%: uses base trailingDrawdownPct (1.2%)
+      { abovePct: 0.33, ddPct: 0.058 },  // PnL >33% of position: ride the monsters
+      { abovePct: 0.21, ddPct: 0.042 },  // PnL 21-33%: big winners
+      { abovePct: 0.125, ddPct: 0.033 }, // PnL 12.5-21%: solid winners
+      { abovePct: 0.067, ddPct: 0.025 }, // PnL 6.7-12.5%: medium winners
+      // Below 6.7%: uses base trailingDrawdownPct (1.7%)
     ],
 
     // Fallback fixed-dollar values (used when dynamicTrailingEnabled=false or contractSize unavailable)

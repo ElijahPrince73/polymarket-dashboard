@@ -33,6 +33,7 @@ import { computeHeikenAshi, countConsecutive } from "./indicators/heikenAshi.js"
 // Engines
 import { detectRegime } from "./engines/regime.js";
 import { scoreDirection, applyTimeAwareness } from "./engines/probability.js";
+import { scoreMomentum, applyTimeAwarenessMomentum, recordPolyPrice } from "./engines/momentum.js";
 import { computeEdge, decide } from "./engines/edge.js";
 
 // Utilities and Setup
@@ -529,8 +530,26 @@ export async function startApp({ skipServer = false } = {}) {
       UP: (marketUp === null || marketUp === undefined) ? null : Number(marketUp),
       DOWN: (marketDown === null || marketDown === undefined) ? null : Number(marketDown)
     };
-    const edge = computeEdge({ modelUp: timeAware.adjustedUp, modelDown: timeAware.adjustedDown, marketYes: marketUp, marketNo: marketDown });
-    const rec = decide({ remainingMinutes: timeLeftMin, edgeUp: edge.edgeUp, edgeDown: edge.edgeDown, modelUp: timeAware.adjustedUp, modelDown: timeAware.adjustedDown });
+    // Record poly prices for momentum model's history buffer
+    recordPolyPrice(polyPrices.UP, polyPrices.DOWN);
+
+    // ── Momentum model (new) ─────────────────────────────────────
+    const momentum = scoreMomentum({
+      spotTicks,
+      polyUp: polyPrices.UP,
+      polyDown: polyPrices.DOWN,
+      timeLeftMin,
+    });
+    const momentumTimeAware = applyTimeAwarenessMomentum(
+      momentum.rawUp, timeLeftMin, CONFIG.candleWindowMinutes
+    );
+
+    // Use momentum model for trading decisions instead of old lagging model
+    const activeModelUp = momentumTimeAware.adjustedUp;
+    const activeModelDown = momentumTimeAware.adjustedDown;
+
+    const edge = computeEdge({ modelUp: activeModelUp, modelDown: activeModelDown, marketYes: marketUp, marketNo: marketDown });
+    const rec = decide({ remainingMinutes: timeLeftMin, edgeUp: edge.edgeUp, edgeDown: edge.edgeDown, modelUp: activeModelUp, modelDown: activeModelDown });
 
     // Spot impulse (Coinbase) over last 60s
     const spotLast = spotStream?.getLast?.() ?? { price: null, ts: null };
@@ -548,14 +567,20 @@ export async function startApp({ skipServer = false } = {}) {
       }
     }
 
-    const predictNarrative = (timeAware.adjustedUp !== null && timeAware.adjustedDown !== null)
-      ? (timeAware.adjustedUp > timeAware.adjustedDown ? "LONG" : "SHORT") : "NEUTRAL";
-    const signalsForTrader = buildSignals({ rec, klines1m, polySnapshot, polyPrices, marketUp, marketDown, timeLeftMin, timeAware, indicatorsData, spotNow, spotDelta1mPct, candleMeta });
+    const predictNarrative = (activeModelUp !== null && activeModelDown !== null)
+      ? (activeModelUp > activeModelDown ? "LONG" : "SHORT") : "NEUTRAL";
+    // Override timeAware in signals with momentum model values
+    const activeTimeAware = { adjustedUp: activeModelUp, adjustedDown: activeModelDown };
+    const signalsForTrader = buildSignals({ rec, klines1m, polySnapshot, polyPrices, marketUp, marketDown, timeLeftMin, timeAware: activeTimeAware, indicatorsData, spotNow, spotDelta1mPct, candleMeta });
 
     globalThis.__uiStatus = {
       marketSlug: polySnapshot.ok ? (polySnapshot.market?.slug ?? null) : null,
       timeLeftMin, btcPrice: currentPrice, spotPrice: spotNow, spotDelta1mPct,
-      modelUp: timeAware.adjustedUp, modelDown: timeAware.adjustedDown, narrative: predictNarrative,
+      modelUp: activeModelUp, modelDown: activeModelDown, narrative: predictNarrative,
+      // Momentum model details for debugging
+      momentumConfidence: momentum.confidence,
+      momentumSignals: momentum.signals,
+      oldModelUp: timeAware.adjustedUp, oldModelDown: timeAware.adjustedDown,
       polyUp: polyPrices.UP, polyDown: polyPrices.DOWN, candleCount: klines1m?.length ?? 0,
       lastTickAt: candleMeta.lastTickAt ? new Date(candleMeta.lastTickAt).toISOString() : null,
       tickCount: candleMeta.tickCount,

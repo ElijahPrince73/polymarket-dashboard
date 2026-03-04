@@ -116,7 +116,9 @@ export const CONFIG = {
 
     // Exit settings
     // Close before settlement to avoid rollover weirdness.
-    exitBeforeEndMinutes: Number(process.env.EXIT_BEFORE_END_MIN) || 1.0,
+    // Disabled: let trades ride to settlement instead of force-exiting at a bad price.
+    // The market resolves and pays out based on outcome — better than forced exit slippage.
+    exitBeforeEndMinutes: Number(process.env.EXIT_BEFORE_END_MIN) || 0,
 
     // Stagnation exit: if trade is flat (PnL within ±$2) after this many seconds, exit early.
     // v1.0.7 data: trades >25s had 36% WR, +$0.55 avg. Stagnating trades usually hit max loss.

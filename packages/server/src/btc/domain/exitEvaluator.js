@@ -284,6 +284,21 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     }
   }
 
+  // ── 3b. Fixed take-profit: exit immediately when PnL hits target ──
+  // Avoids trailing TP slippage problem: data shows $5-19 lost between
+  // trail trigger and actual fill. Fixed TP exits at the target, period.
+  const fixedTpEnabled = config.fixedTakeProfitEnabled ?? false;
+  const fixedTpPct = config.fixedTakeProfitPct ?? 0.05; // 5% of position
+  if (fixedTpEnabled && pnlNow !== null && isNum(position.contractSize) && position.contractSize > 0) {
+    const tpTarget = position.contractSize * fixedTpPct;
+    if (pnlNow >= tpTarget) {
+      result.decision = {
+        reason: `Take Profit ($${pnlNow.toFixed(2)} >= $${tpTarget.toFixed(2)} [${(fixedTpPct*100).toFixed(0)}%])`,
+      };
+      return result;
+    }
+  }
+
   // ── 4. High-price take-profit ────────────────────────────────────
   const tpPrice = config.takeProfitPrice ?? null;
   if (isNum(tpPrice) && isNum(mark) && mark >= tpPrice) {

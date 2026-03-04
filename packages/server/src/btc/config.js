@@ -145,6 +145,12 @@ export const CONFIG = {
     // wiping all trailing TP profit (+$503). 75% of max losses never went green.
     // At $120 position: 12% = $14.40 max loss (was $21.60 at 18%).
     // At $6 position ($50 balance): 12% = $0.72
+    // Fixed take-profit: exit immediately at X% of position. No trailing, no slippage.
+    // At $100 position: 5% = $5 profit target. Fires before trailing TP.
+    fixedTakeProfitEnabled:
+      (process.env.FIXED_TP_ENABLED || 'true').toLowerCase() === 'true',
+    fixedTakeProfitPct: Number(process.env.FIXED_TP_PCT) || 0.05, // 5% of position
+
     // Tightened from 12% to 8%: simulation showed $76 saved over 20 max-loss trades
     dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT) || 0.08,
     minMaxLossUsd: Number(process.env.MIN_MAX_LOSS_USD) || 3,

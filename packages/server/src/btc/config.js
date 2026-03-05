@@ -150,7 +150,7 @@ export const CONFIG = {
     // Fixed take-profit: exit immediately at X% of position. No trailing, no slippage.
     // At $100 position: 5% = $5 profit target. Fires before trailing TP.
     fixedTakeProfitEnabled:
-      (process.env.FIXED_TP_ENABLED || 'false').toLowerCase() === 'false',
+      (process.env.FIXED_TP_ENABLED || 'false').toLowerCase() === 'true',
     // Raised from 5% to 10%: $5 TP vs $8 SL needed 62% WR (too hard).
     // $10 TP vs $8 SL needs only 44% WR. Data shows trades regularly hit $10+ MFE.
     fixedTakeProfitPct: Number(process.env.FIXED_TP_PCT) || 0.05, // 5% of position ($5 at $100)

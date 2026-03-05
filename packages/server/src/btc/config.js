@@ -76,13 +76,13 @@ export const CONFIG = {
       (process.env.PAPER_TRADING_ENABLED || 'true').toLowerCase() === 'true',
 
     // Bankroll + position sizing
-    startingBalance: Number(process.env.STARTING_BALANCE) || 500,
+    startingBalance: Number(process.env.STARTING_BALANCE) || 1000,
     // Raised from 8% to 12%: at $1,139 balance this means ~$137/trade instead of ~$91.
     // As balance grows, trades scale automatically. Floor $50, ceiling $300.
     // At $500: 20% = $100 positions. Sweet spot for risk/reward.
-    stakePct: Number(process.env.STAKE_PCT) || 0.20, // 20% of balance per trade
-    minTradeUsd: Number(process.env.MIN_TRADE_USD) || 5,
-    maxTradeUsd: Number(process.env.MAX_TRADE_USD) || 300,
+    stakePct: Number(process.env.STAKE_PCT) || 0.08, // 20% of balance per trade
+    minTradeUsd: Number(process.env.MIN_TRADE_USD) || 25,
+    maxTradeUsd: Number(process.env.MAX_TRADE_USD) || 250,
 
     // Back-compat (legacy fixed size). If stakePct is set, we use dynamic sizing.
     contractSize: Number(process.env.PAPER_CONTRACT_SIZE) || 100,
@@ -93,17 +93,17 @@ export const CONFIG = {
     // entries at >60¢ (higher conviction) had 63% WR vs 27% at <40¢.
     // Loosened for high-frequency: bet on almost every market
     // Tightened: 75% of entries never went green. Need higher conviction.
-    minProbEarly: Number(process.env.MIN_PROB_EARLY) || 0.51,
-    minProbMid: Number(process.env.MIN_PROB_MID) || 0.51,
-    minProbLate: Number(process.env.MIN_PROB_LATE) || 0.51,
+    minProbEarly: Number(process.env.MIN_PROB_EARLY) || 0.57,
+    minProbMid: Number(process.env.MIN_PROB_MID) || 0.58,
+    minProbLate: Number(process.env.MIN_PROB_LATE) || 0.60,
 
     // Lowered from 0.02 to 0.015: 84% of trades are EARLY phase with PF near 1.0.
     // Slightly looser edge lets more volume through where timing advantage is highest.
     // Minimal edge requirements — let volume flow
     // Tightened: need real edge, not noise
-    edgeEarly: Number(process.env.EDGE_EARLY) || 0.001,
-    edgeMid: Number(process.env.EDGE_MID) || 0.001,
-    edgeLate: Number(process.env.EDGE_LATE) || 0.001,
+    edgeEarly: Number(process.env.EDGE_EARLY) || 0.015,
+    edgeMid: Number(process.env.EDGE_MID) || 0.03,
+    edgeLate: Number(process.env.EDGE_LATE) || 0.05,
 
     // Extra strictness knobs (used to improve odds without killing trade count)
     // MID entries tend to be weaker; require a bit more strength.
@@ -118,7 +118,7 @@ export const CONFIG = {
     // Close before settlement to avoid rollover weirdness.
     // Disabled: let trades ride to settlement instead of force-exiting at a bad price.
     // The market resolves and pays out based on outcome — better than forced exit slippage.
-    exitBeforeEndMinutes: Number(process.env.EXIT_BEFORE_END_MIN) || 0,
+    exitBeforeEndMinutes: Number(process.env.EXIT_BEFORE_END_MIN) || 1.0,
 
     // Stagnation exit: if trade is flat (PnL within ±$2) after this many seconds, exit early.
     // v1.0.7 data: trades >25s had 36% WR, +$0.55 avg. Stagnating trades usually hit max loss.
@@ -150,7 +150,7 @@ export const CONFIG = {
     // Fixed take-profit: exit immediately at X% of position. No trailing, no slippage.
     // At $100 position: 5% = $5 profit target. Fires before trailing TP.
     fixedTakeProfitEnabled:
-      (process.env.FIXED_TP_ENABLED || 'true').toLowerCase() === 'true',
+      (process.env.FIXED_TP_ENABLED || 'false').toLowerCase() === 'false',
     // Raised from 5% to 10%: $5 TP vs $8 SL needed 62% WR (too hard).
     // $10 TP vs $8 SL needs only 44% WR. Data shows trades regularly hit $10+ MFE.
     fixedTakeProfitPct: Number(process.env.FIXED_TP_PCT) || 0.05, // 5% of position ($5 at $100)
@@ -159,8 +159,8 @@ export const CONFIG = {
     reducedTpAfterSeconds: Number(process.env.REDUCED_TP_AFTER_SEC) || 9999,
 
     // Tightened from 12% to 8%: simulation showed $76 saved over 20 max-loss trades
-    dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT) || 0.08,
-    minMaxLossUsd: Number(process.env.MIN_MAX_LOSS_USD) || 3,
+    dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT) || 0.10,
+    minMaxLossUsd: Number(process.env.MIN_MAX_LOSS_USD) || 8,
     maxMaxLossUsd: Number(process.env.MAX_MAX_LOSS_USD) || 20,
 
     // Max-loss grace (optional): when pnl breaches -maxLossUsdPerTrade, allow a short grace window
@@ -188,8 +188,8 @@ export const CONFIG = {
 
     // Cooldown after a losing trade (seconds): prevents rapid back-to-back losses.
     // Reduced cooldowns for high-frequency
-    lossCooldownSeconds: Number(process.env.LOSS_COOLDOWN_SECONDS) || 0,
-    winCooldownSeconds: Number(process.env.WIN_COOLDOWN_SECONDS) || 0,
+    lossCooldownSeconds: Number(process.env.LOSS_COOLDOWN_SECONDS) || 30,
+    winCooldownSeconds: Number(process.env.WIN_COOLDOWN_SECONDS) || 30,
 
     // Daily loss limit: kill-switch threshold (applies to BOTH paper and live modes)
     // Alias: DAILY_LOSS_LIMIT overrides LIVE_MAX_DAILY_LOSS_USD for unified behavior
@@ -238,15 +238,16 @@ export const CONFIG = {
     // Disabled: fixed TP handles exits now. Trailing TP was undercutting
     // by exiting at small pullbacks before fixed TP could trigger.
     trailingTakeProfitEnabled:
-      (process.env.TRAILING_TAKE_PROFIT_ENABLED || 'false').toLowerCase() ===
+      (process.env.TRAILING_TAKE_PROFIT_ENABLED || 'true').toLowerCase() ===
       'true',
     // Dynamic trailing TP: scales with position size (% of contractSize).
     // At $1000 balance, 12% stake = $120 position:
     //   start = $120 * 0.04 = $4.80, base dd = $120 * 0.017 = $2.04
     // At $2000 balance: start = $9.60, base dd = $4.08
     // Scales automatically — no manual tuning needed as balance grows.
+    // Disabled: v1.0.7 used fixed USD values, not dynamic %
     dynamicTrailingEnabled:
-      (process.env.DYNAMIC_TRAILING_ENABLED || 'true').toLowerCase() === 'true',
+      (process.env.DYNAMIC_TRAILING_ENABLED || 'false').toLowerCase() === 'true',
 
     // Trailing start threshold as % of position size
     // Lowered from 4% to 3%: activate trailing sooner to lock in gains earlier
@@ -268,7 +269,8 @@ export const CONFIG = {
     ],
 
     // Fallback fixed-dollar values (used when dynamicTrailingEnabled=false or contractSize unavailable)
-    trailingStartUsd: Number(process.env.TRAILING_TAKE_PROFIT_START_USD) || 7,
+    // v1.0.7 values: start at $3, drawdown $2.50
+    trailingStartUsd: Number(process.env.TRAILING_TAKE_PROFIT_START_USD) || 3,
     trailingDrawdownUsd:
       Number(process.env.TRAILING_TAKE_PROFIT_DRAWDOWN_USD) || 2.50,
     trailingDrawdownTiers: [
@@ -314,7 +316,7 @@ export const CONFIG = {
     // Tighten spread for better fills
     // Tightened to reduce adverse selection / churn in wide markets
     // Widened for high-frequency
-    maxSpread: Number(process.env.MAX_SPREAD) || 0.10,
+    maxSpread: Number(process.env.MAX_SPREAD) || 0.012,
 
     // Trading schedule filter (America/Los_Angeles)
     // If enabled, blocks weekend entries (with optional Sunday exception).
@@ -345,7 +347,7 @@ export const CONFIG = {
     // Require the BTC spot price to have moved at least this much over the last 60s.
     // Set to 0 to disable.
     // Lowered: don't require much movement to enter
-    minBtcImpulsePct1m: Number(process.env.MIN_BTC_IMPULSE_PCT_1M) || 0, // 0.01%
+    minBtcImpulsePct1m: Number(process.env.MIN_BTC_IMPULSE_PCT_1M) || 0.0003, // 0.01%
 
     // Volume filters (set to 0 to disable)
     // volumeRecent is sum of last 20x 1m candle volumes
@@ -359,10 +361,10 @@ export const CONFIG = {
     // Raised from 0.35 to 0.40: entries below 40¢ had 29% WR and -$107 PnL across 38 trades (234-trade analysis).
     // Widened for high-frequency: allow more price ranges
     // Only enter when one side is 70¢-90¢ (clear direction but not too expensive)
-    minPolyPrice: Number(process.env.MIN_POLY_PRICE) || 0.70,
+    minPolyPrice: Number(process.env.MIN_POLY_PRICE) || 0.40,
     maxPolyPrice: Number(process.env.MAX_POLY_PRICE) || 0.95,
     // Tightened: above 70¢ the upside is capped and risk is high
-    maxEntryPolyPrice: Number(process.env.MAX_ENTRY_POLY_PRICE) || 0.90,
+    maxEntryPolyPrice: Number(process.env.MAX_ENTRY_POLY_PRICE) || 0.65,
     minOppositePolyPrice: Number(process.env.MIN_OPPOSITE_POLY_PRICE) || 0.01,
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
@@ -370,21 +372,21 @@ export const CONFIG = {
     // Moderate default: require ~0.20% range over last 20 minutes.
     // More permissive for 5m (higher frequency): require ~0.12% range over last 20 minutes.
     // Lowered: allow quieter markets
-    minRangePct20: Number(process.env.MIN_RANGE_PCT_20) || 0,
+    minRangePct20: Number(process.env.MIN_RANGE_PCT_20) || 0.0012,
 
     // Confidence filter: avoid coin-flip markets where the model is near 50/50.
     // We require max(modelUp, modelDown) >= this value to allow entries.
     // Lowered: allow near-50/50 markets
     // Tightened: require model to have at least 55% confidence in one direction
-    minModelMaxProb: Number(process.env.MIN_MODEL_MAX_PROB) || 0.50,
+    minModelMaxProb: Number(process.env.MIN_MODEL_MAX_PROB) || 0.53,
 
     // RSI consolidation filter: disabled for high-frequency trading
-    noTradeRsiMin: Number(process.env.NO_TRADE_RSI_MIN) || 0,
-    noTradeRsiMax: Number(process.env.NO_TRADE_RSI_MAX) || 0,
+    noTradeRsiMin: Number(process.env.NO_TRADE_RSI_MIN) || 30,
+    noTradeRsiMax: Number(process.env.NO_TRADE_RSI_MAX) || 45,
 
     // RSI overbought/oversold directional filter
-    noTradeRsiOverbought: Number(process.env.NO_TRADE_RSI_OVERBOUGHT) || 100,
-    noTradeRsiOversold: Number(process.env.NO_TRADE_RSI_OVERSOLD) || 0,
+    noTradeRsiOverbought: Number(process.env.NO_TRADE_RSI_OVERBOUGHT) || 78,
+    noTradeRsiOversold: Number(process.env.NO_TRADE_RSI_OVERSOLD) || 22,
 
     // RSI directional bias: align trade direction with momentum.
     // RSI < 40 → only DOWN allowed. RSI > 60 → only UP allowed.
@@ -392,9 +394,9 @@ export const CONFIG = {
     // Disabled for high-frequency — let both sides trade freely
     rsiDirectionalBiasEnabled:
       (process.env.RSI_DIRECTIONAL_BIAS_ENABLED || 'false').toLowerCase() === 'true',
-    rsiBearishThreshold: Number(process.env.RSI_BEARISH_THRESHOLD) || 0,
+    rsiBearishThreshold: Number(process.env.RSI_BEARISH_THRESHOLD) || 40,
     // Raised from 60 to 65: RSI>60 UP had 42 trades at -$7 PnL. Cuts marginal entries.
-    rsiBullishThreshold: Number(process.env.RSI_BULLISH_THRESHOLD) || 100,
+    rsiBullishThreshold: Number(process.env.RSI_BULLISH_THRESHOLD) || 60,
 
     // Heiken Ashi exhaustion filter: block entries when HA count is 4-6.
     // 157-trade data: count 4-6 had 38% WR, -$35. Count 2-3 best (54% WR, +$112).
@@ -418,14 +420,14 @@ export const CONFIG = {
     // Time filters
     // For 5m, avoid new entries too close to settlement (rollover risk)
     // Allow entries closer to settlement
-    noEntryFinalMinutes: Number(process.env.NO_ENTRY_FINAL_MIN) || 0,
+    noEntryFinalMinutes: Number(process.env.NO_ENTRY_FINAL_MIN) || 1.5,
     // Only enter in the final X minutes of the market. 0 = disabled.
     // Late-entry strategy: wait for market to show clear direction.
     // Widened from 1.5 to 2.5 — more time for price to reach 70¢+ in the window
-    onlyEntryFinalMinutes: Number(process.env.ONLY_ENTRY_FINAL_MIN) || 2.5,
+    onlyEntryFinalMinutes: Number(process.env.ONLY_ENTRY_FINAL_MIN) || 0,
 
     // Require enough 1m candles before allowing entries (helps avoid 50/50 startup)
-    minCandlesForEntry: Number(process.env.MIN_CANDLES_FOR_ENTRY) || 1,
+    minCandlesForEntry: Number(process.env.MIN_CANDLES_FOR_ENTRY) || 12,
 
     // Rec gating controls whether we require the engine to explicitly say ENTER.
     // - strict: must be Rec=ENTER

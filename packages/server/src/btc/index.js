@@ -544,9 +544,10 @@ export async function startApp({ skipServer = false } = {}) {
       momentum.rawUp, timeLeftMin, CONFIG.candleWindowMinutes
     );
 
-    // Use momentum model for trading decisions instead of old lagging model
-    const activeModelUp = momentumTimeAware.adjustedUp;
-    const activeModelDown = momentumTimeAware.adjustedDown;
+    // v1.0.7 restore: use original lagging indicator model
+    // Momentum model kept for logging/comparison only
+    const activeModelUp = timeAware.adjustedUp;
+    const activeModelDown = timeAware.adjustedDown;
 
     const edge = computeEdge({ modelUp: activeModelUp, modelDown: activeModelDown, marketYes: marketUp, marketNo: marketDown });
     const rec = decide({ remainingMinutes: timeLeftMin, edgeUp: edge.edgeUp, edgeDown: edge.edgeDown, modelUp: activeModelUp, modelDown: activeModelDown });

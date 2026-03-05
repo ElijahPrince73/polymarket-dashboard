@@ -363,7 +363,7 @@ export const CONFIG = {
     maxPolyPrice: Number(process.env.MAX_POLY_PRICE) || 0.95,
     // Tightened: above 70¢ the upside is capped and risk is high
     maxEntryPolyPrice: Number(process.env.MAX_ENTRY_POLY_PRICE) || 0.90,
-    minOppositePolyPrice: Number(process.env.MIN_OPPOSITE_POLY_PRICE) || 0.05,
+    minOppositePolyPrice: Number(process.env.MIN_OPPOSITE_POLY_PRICE) || 0.01,
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
     // rangePct20 = (max(close,last20) - min(close,last20)) / lastClose
@@ -392,9 +392,9 @@ export const CONFIG = {
     // Disabled for high-frequency — let both sides trade freely
     rsiDirectionalBiasEnabled:
       (process.env.RSI_DIRECTIONAL_BIAS_ENABLED || 'false').toLowerCase() === 'true',
-    rsiBearishThreshold: Number(process.env.RSI_BEARISH_THRESHOLD) || 30,
+    rsiBearishThreshold: Number(process.env.RSI_BEARISH_THRESHOLD) || 0,
     // Raised from 60 to 65: RSI>60 UP had 42 trades at -$7 PnL. Cuts marginal entries.
-    rsiBullishThreshold: Number(process.env.RSI_BULLISH_THRESHOLD) || 70,
+    rsiBullishThreshold: Number(process.env.RSI_BULLISH_THRESHOLD) || 100,
 
     // Heiken Ashi exhaustion filter: block entries when HA count is 4-6.
     // 157-trade data: count 4-6 had 38% WR, -$35. Count 2-3 best (54% WR, +$112).
@@ -421,7 +421,8 @@ export const CONFIG = {
     noEntryFinalMinutes: Number(process.env.NO_ENTRY_FINAL_MIN) || 0,
     // Only enter in the final X minutes of the market. 0 = disabled.
     // Late-entry strategy: wait for market to show clear direction.
-    onlyEntryFinalMinutes: Number(process.env.ONLY_ENTRY_FINAL_MIN) || 1.5,
+    // Widened from 1.5 to 2.5 — more time for price to reach 70¢+ in the window
+    onlyEntryFinalMinutes: Number(process.env.ONLY_ENTRY_FINAL_MIN) || 2.5,
 
     // Require enough 1m candles before allowing entries (helps avoid 50/50 startup)
     minCandlesForEntry: Number(process.env.MIN_CANDLES_FOR_ENTRY) || 1,

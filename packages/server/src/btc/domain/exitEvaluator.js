@@ -399,7 +399,7 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     const tiers = config.tieredTakeProfitTiers ?? [
       { minAgeSec: 120, minPnlUsd: 10 },
       { minAgeSec: 180, minPnlUsd: 5 },
-      { minAgeSec: 250, minPnlUsd: 0.01 },
+      { minAgeSec: 250, minPnlUsd: -Infinity },  // Force exit at 250s — win or lose
     ];
     for (const tier of tiers) {
       if (tradeAgeSec >= tier.minAgeSec && pnlNow >= tier.minPnlUsd) {

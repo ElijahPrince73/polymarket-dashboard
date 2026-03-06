@@ -97,6 +97,33 @@ export function scoreMomentum({ spotTicks, polyUp, polyDown, timeLeftMin, orderb
   let downWeight = 0;
   let totalWeight = 0;
 
+  // ── 0. BTC Spot Momentum (5s window) — weight 2 ────────────────
+  // Ultra-short: immediate impulse, freshest signal possible
+  const SPOT_5_WEIGHT = 2;
+
+  if (Array.isArray(spotTicks) && spotTicks.length >= 2) {
+    const now = spotTicks[spotTicks.length - 1];
+    const cutoff = now.t - 5_000;
+
+    let base = null;
+    for (let i = 0; i < spotTicks.length; i++) {
+      if (spotTicks[i].t >= cutoff) { base = spotTicks[i].price; break; }
+    }
+    if (base === null) base = spotTicks[0]?.price;
+
+    if (base && base > 0) {
+      const delta = (now.price - base) / base;
+      signals.spotDelta5s = delta;
+
+      // Lower threshold for 5s — even small moves matter at this timescale
+      if (Math.abs(delta) > 0.00003) {
+        if (delta > 0) upWeight += SPOT_5_WEIGHT;
+        else downWeight += SPOT_5_WEIGHT;
+        totalWeight += SPOT_5_WEIGHT;
+      }
+    }
+  }
+
   // ── 1. BTC Spot Momentum (15s window) — weight 3 ──────────────
   // Most important: what is BTC doing RIGHT NOW?
   const SPOT_WINDOW_S = 15;

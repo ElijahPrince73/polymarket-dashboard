@@ -140,12 +140,23 @@ export class TradingEngine {
       }
     }
 
-    // Update MFE/MAE tracking
+    // Update MFE/MAE tracking + PnL trajectory
     for (const p of positions) {
       const posId = p.id || p.tokenID || 'default';
       if (isNum(p.unrealizedPnl)) {
         this.state.trackMFE(posId, p.unrealizedPnl);
         this.state.trackMAE(posId, p.unrealizedPnl);
+
+        // ── PnL trajectory recording (every ~1s tick) ──────────
+        if (!this._pnlTrajectory) this._pnlTrajectory = [];
+        const entryMs = p.entryTime ? new Date(p.entryTime).getTime() : this._tradeStartMs;
+        if (!this._tradeStartMs && entryMs) this._tradeStartMs = entryMs;
+        const elapsed = entryMs ? Math.round((Date.now() - entryMs) / 1000) : this._pnlTrajectory.length;
+        // Sample every 2s to keep array manageable (max ~150 for 5min market)
+        const lastSnap = this._pnlTrajectory[this._pnlTrajectory.length - 1];
+        if (!lastSnap || elapsed - lastSnap.t >= 2) {
+          this._pnlTrajectory.push({ t: elapsed, pnl: Math.round(p.unrealizedPnl * 100) / 100 });
+        }
 
         // Inject tracked MFE/MAE into position for exit evaluator
         const mfe = this.state.getMaxUnrealized(posId);
@@ -191,13 +202,67 @@ export class TradingEngine {
           modelDownAtExit: signals?.modelDown ?? null,
         };
 
-        // Write MFE/MAE to executor trade record before closing
+        // Write MFE/MAE + PnL trajectory to executor trade record before closing
         if (this.executor.openTrade) {
           const trackedMfe = this.state.getMaxUnrealized(posId);
           const trackedMae = this.state.getMinUnrealized(posId);
           if (trackedMfe !== null) this.executor.openTrade.maxUnrealizedPnl = trackedMfe;
           if (trackedMae !== null) this.executor.openTrade.minUnrealizedPnl = trackedMae;
+
+          // Inject PnL trajectory stats into extraJson
+          if (this._pnlTrajectory && this._pnlTrajectory.length > 0) {
+            const traj = this._pnlTrajectory;
+            const posSnaps = traj.filter(s => s.pnl > 0);
+            const negSnaps = traj.filter(s => s.pnl <= 0);
+            const peakSnap = traj.reduce((a, b) => (b.pnl > a.pnl ? b : a), traj[0]);
+
+            // Compute time-in-green and recovery gaps
+            let timePositive = 0;
+            let recoveryGaps = [];
+            let lastPositiveT = null;
+            for (const s of traj) {
+              if (s.pnl > 0) {
+                timePositive += 2; // each snap is ~2s
+                if (lastPositiveT !== null && s.t - lastPositiveT > 2) {
+                  recoveryGaps.push(s.t - lastPositiveT);
+                }
+                lastPositiveT = s.t;
+              }
+            }
+
+            const trajStats = {
+              snapshots: traj.length,
+              timesPositive: posSnaps.length,
+              timesNegative: negSnaps.length,
+              timePositiveSec: timePositive,
+              timeNegativeSec: (traj.length * 2) - timePositive,
+              peakPnl: peakSnap.pnl,
+              peakAtSec: peakSnap.t,
+              avgRecoveryGapSec: recoveryGaps.length ? Math.round(recoveryGaps.reduce((a, b) => a + b, 0) / recoveryGaps.length) : null,
+              maxRecoveryGapSec: recoveryGaps.length ? Math.max(...recoveryGaps) : null,
+              pnlAtIntervals: {
+                at30s: traj.find(s => s.t >= 30)?.pnl ?? null,
+                at60s: traj.find(s => s.t >= 60)?.pnl ?? null,
+                at120s: traj.find(s => s.t >= 120)?.pnl ?? null,
+                at180s: traj.find(s => s.t >= 180)?.pnl ?? null,
+                at240s: traj.find(s => s.t >= 240)?.pnl ?? null,
+              },
+            };
+
+            // Merge into extraJson
+            try {
+              const existing = typeof this.executor.openTrade.extraJson === 'string'
+                ? JSON.parse(this.executor.openTrade.extraJson)
+                : (this.executor.openTrade.extraJson || {});
+              existing.trajStats = trajStats;
+              existing.pnlTrajectory = traj;
+              this.executor.openTrade.extraJson = JSON.stringify(existing);
+            } catch (_) {}
+          }
         }
+        // Reset trajectory for next trade
+        this._pnlTrajectory = [];
+        this._tradeStartMs = null;
 
         try {
           const closeResult = await this.executor.closePosition({

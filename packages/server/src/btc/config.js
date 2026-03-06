@@ -118,7 +118,8 @@ export const CONFIG = {
     // Close before settlement to avoid rollover weirdness.
     // Disabled: let trades ride to settlement instead of force-exiting at a bad price.
     // The market resolves and pays out based on outcome — better than forced exit slippage.
-    exitBeforeEndMinutes: Number(process.env.EXIT_BEFORE_END_MIN) || 0,
+    // ALL OR NOTHING: ride to settlement. Hardcoded 0.
+    exitBeforeEndMinutes: 0,
 
     // Stagnation exit: if trade is flat (PnL within ±$2) after this many seconds, exit early.
     // v1.0.7 data: trades >25s had 36% WR, +$0.55 avg. Stagnating trades usually hit max loss.
@@ -135,24 +136,23 @@ export const CONFIG = {
 
     // Hard max loss cap (USD): prevents one trade from wiping multiple small wins.
     // If pnlNow <= -maxLossUsdPerTrade, force exit (unless max-loss grace is enabled).
-    maxLossUsdPerTrade: Number(process.env.MAX_LOSS_USD_PER_TRADE) || 25,
+    // ALL OR NOTHING: no fixed max loss fallback either. Hardcoded 0.
+    maxLossUsdPerTrade: 0,
 
     // Dynamic stop loss: scale maxLoss proportionally to position size.
     // When enabled, maxLoss = contractSize * dynamicStopLossPct, clamped to [minMaxLossUsd, maxMaxLossUsd].
     // When disabled, the fixed maxLossUsdPerTrade above is used (backward compat).
     // Example: $80 trade * 0.20 = $16 max loss; $250 trade * 0.20 = $40 (ceiling).
-    // ALL OR NOTHING: no stop loss, ride to settlement
-    dynamicStopLossEnabled:
-      (process.env.DYNAMIC_STOP_LOSS_ENABLED || 'false').toLowerCase() === 'true',
+    // ALL OR NOTHING: no stop loss, ride to settlement. Hardcoded false.
+    dynamicStopLossEnabled: false,
     // Tightened from 18% to 12%: 101-trade analysis showed max loss trades (-$521)
     // wiping all trailing TP profit (+$503). 75% of max losses never went green.
     // At $120 position: 12% = $14.40 max loss (was $21.60 at 18%).
     // At $6 position ($50 balance): 12% = $0.72
     // Fixed take-profit: exit immediately at X% of position. No trailing, no slippage.
     // At $100 position: 5% = $5 profit target. Fires before trailing TP.
-    // ALL OR NOTHING: no fixed TP, ride to settlement
-    fixedTakeProfitEnabled:
-      (process.env.FIXED_TP_ENABLED || 'false').toLowerCase() === 'true',
+    // ALL OR NOTHING: no fixed TP, ride to settlement. Hardcoded false.
+    fixedTakeProfitEnabled: false,
     // Raised from 5% to 10%: $5 TP vs $8 SL needed 62% WR (too hard).
     // $10 TP vs $8 SL needs only 44% WR. Data shows trades regularly hit $10+ MFE.
     fixedTakeProfitPct: Number(process.env.FIXED_TP_PCT) || 0.06, // 6% of position (~$5 at $80)
@@ -240,10 +240,8 @@ export const CONFIG = {
     // - If pnlNow falls back below the trail, we exit (locking in gains).
     // Disabled: fixed TP handles exits now. Trailing TP was undercutting
     // by exiting at small pullbacks before fixed TP could trigger.
-    // ALL OR NOTHING: no trailing TP, ride to settlement
-    trailingTakeProfitEnabled:
-      (process.env.TRAILING_TAKE_PROFIT_ENABLED || 'false').toLowerCase() ===
-      'true',
+    // ALL OR NOTHING: no trailing TP, ride to settlement. Hardcoded false.
+    trailingTakeProfitEnabled: false,
     // Dynamic trailing TP: scales with position size (% of contractSize).
     // At $1000 balance, 12% stake = $120 position:
     //   start = $120 * 0.04 = $4.80, base dd = $120 * 0.017 = $2.04

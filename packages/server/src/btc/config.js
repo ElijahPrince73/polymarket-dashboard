@@ -127,7 +127,8 @@ export const CONFIG = {
     stagnationBandUsd: Number(process.env.STAGNATION_BAND_USD) || 2,
 
     // Time stop: if a trade can't go green quickly, cut it.
-    loserMaxHoldSeconds: Number(process.env.LOSER_MAX_HOLD_SECONDS) || 120,
+    // ALL OR NOTHING: no time stop. Hardcoded 0.
+    loserMaxHoldSeconds: 0,
 
     // Minimum hold before max loss can trigger (seconds).
     // Prevents stop-outs from entry volatility. 5/7 "right direction but lost" trades

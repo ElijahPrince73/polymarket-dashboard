@@ -403,8 +403,11 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     ];
     for (const tier of tiers) {
       if (tradeAgeSec >= tier.minAgeSec && pnlNow >= tier.minPnlUsd) {
+        const tierLabel = tier.minPnlUsd <= -1e10
+          ? `Force Exit @${tier.minAgeSec}s`
+          : `$${tier.minPnlUsd}@${tier.minAgeSec}s`;
         result.decision = {
-          reason: `Tiered TP ($${pnlNow.toFixed(2)} after ${tradeAgeSec.toFixed(0)}s, tier $${tier.minPnlUsd}@${tier.minAgeSec}s)`
+          reason: `Tiered TP ($${pnlNow.toFixed(2)} after ${tradeAgeSec.toFixed(0)}s, ${tierLabel})`
         };
         return result;
       }

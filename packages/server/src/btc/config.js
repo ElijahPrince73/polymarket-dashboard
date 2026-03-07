@@ -138,7 +138,7 @@ export const CONFIG = {
     // Hard max loss cap (USD): prevents one trade from wiping multiple small wins.
     // If pnlNow <= -maxLossUsdPerTrade, force exit (unless max-loss grace is enabled).
     // ALL OR NOTHING: no fixed max loss fallback either. Hardcoded 0.
-    maxLossUsdPerTrade: 0,
+    maxLossUsdPerTrade: 20,
 
     // Dynamic stop loss: scale maxLoss proportionally to position size.
     // When enabled, maxLoss = contractSize * dynamicStopLossPct, clamped to [minMaxLossUsd, maxMaxLossUsd].

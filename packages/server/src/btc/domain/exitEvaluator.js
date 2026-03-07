@@ -397,9 +397,11 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
   const tieredTpEnabled = config.tieredTakeProfitEnabled ?? true;
   if (tieredTpEnabled && pnlNow !== null && isNum(tradeAgeSec)) {
     const tiers = config.tieredTakeProfitTiers ?? [
-      { minAgeSec: 120, minPnlUsd: 10 },
-      { minAgeSec: 180, minPnlUsd: 5 },
-      { minAgeSec: 250, minPnlUsd: -Infinity },  // Force exit at 250s — win or lose
+      { minAgeSec: 0,   minPnlUsd: 15 },   // Big win: take immediately
+      { minAgeSec: 60,  minPnlUsd: 10 },   // Solid win: after 1 min
+      { minAgeSec: 120, minPnlUsd: 5 },    // Moderate win: after 2 min
+      { minAgeSec: 180, minPnlUsd: 2 },    // Small win: after 3 min
+      { minAgeSec: 250, minPnlUsd: -Infinity },  // Force exit: cut losses before settlement
     ];
     for (const tier of tiers) {
       if (tradeAgeSec >= tier.minAgeSec && pnlNow >= tier.minPnlUsd) {

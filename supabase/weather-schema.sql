@@ -1,3 +1,4 @@
+-- Migration: ALTER TABLE weather_trades ADD COLUMN IF NOT EXISTS trading_mode TEXT DEFAULT 'paper';
 -- Weather trades table (mirrors SQLite schema)
 CREATE TABLE IF NOT EXISTS weather_trades (
   id BIGSERIAL PRIMARY KEY,
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS weather_trades (
   fill_size INTEGER,
   condition_id TEXT,
   neg_risk INTEGER DEFAULT 0,
+  trading_mode TEXT DEFAULT 'paper',
   resolved_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -15,6 +15,10 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+function getTradingMode() {
+  return isLiveMode() ? "live" : "paper";
+}
+
 // ── Trades ─────────────────────────────────────────────────────────────────
 
 export async function insertTrade(trade) {
@@ -39,6 +43,7 @@ export async function insertTrade(trade) {
     fill_size: trade.fill_size ?? null,
     condition_id: trade.condition_id ?? null,
     neg_risk: trade.neg_risk ?? 0,
+    trading_mode: getTradingMode(),
     resolved_at: trade.resolved_at ?? null,
   };
   const { data, error } = await supabase.from("weather_trades").insert(row).select().single();
@@ -50,7 +55,7 @@ const UPDATABLE_COLUMNS = new Set([
   "city", "station", "question", "market_url", "event_date", "side",
   "entry_price", "model_prob", "edge", "size_pct", "stake_usd",
   "status", "result", "pnl", "notes", "token_id", "order_id",
-  "fill_size", "condition_id", "neg_risk", "resolved_at",
+  "fill_size", "condition_id", "neg_risk", "trading_mode", "resolved_at",
 ]);
 
 export async function updateTrade(id, updates) {
@@ -67,6 +72,7 @@ export async function getOpenTrades() {
     .from("weather_trades")
     .select("*")
     .eq("status", "OPEN")
+    .eq("trading_mode", getTradingMode())
     .order("id", { ascending: false });
   if (error) throw new Error(`getOpenTrades failed: ${error.message}`);
   return data ?? [];
@@ -78,6 +84,7 @@ export async function getUnresolvedTrades() {
     .select("*")
     .in("status", ["OPEN", "STOP", "SWITCHED"])
     .or("result.is.null,result.eq.PENDING")
+    .eq("trading_mode", getTradingMode())
     .order("id", { ascending: false });
   if (error) throw new Error(`getUnresolvedTrades failed: ${error.message}`);
   return data ?? [];
@@ -86,7 +93,8 @@ export async function getUnresolvedTrades() {
 export async function getTradesSummary() {
   const { data, error } = await supabase
     .from("weather_trades")
-    .select("city,event_date,status,stake_usd");
+    .select("city,event_date,status,stake_usd")
+    .eq("trading_mode", getTradingMode());
   if (error) throw new Error(`getTradesSummary failed: ${error.message}`);
   return data ?? [];
 }
@@ -98,6 +106,7 @@ export async function getResolvedTradesSince(sinceDate) {
     .in("result", ["WIN", "LOSS"])
     .not("resolved_at", "is", null)
     .gte("resolved_at", sinceDate)
+    .eq("trading_mode", getTradingMode())
     .order("resolved_at", { ascending: false });
   if (error) throw new Error(`getResolvedTradesSince failed: ${error.message}`);
   return data ?? [];
@@ -116,6 +125,7 @@ export async function getTodayResolvedTrades(todayIso = new Date().toISOString()
     .not("resolved_at", "is", null)
     .gte("resolved_at", dayStart)
     .lt("resolved_at", dayEnd)
+    .eq("trading_mode", getTradingMode())
     .order("resolved_at", { ascending: false });
   if (error) throw new Error(`getTodayResolvedTrades failed: ${error.message}`);
   return data ?? [];
@@ -127,6 +137,7 @@ export async function getTradesByCityDate(city, date) {
     .select("*")
     .eq("city", city)
     .eq("event_date", date)
+    .eq("trading_mode", getTradingMode())
     .order("created_at", { ascending: false });
   if (error) throw new Error(`getTradesByCityDate failed: ${error.message}`);
   return data ?? [];
@@ -139,7 +150,8 @@ export async function getTodayResolvedPnl(todayIso = new Date().toISOString().sl
     .in("result", ["WIN", "LOSS"])
     .not("resolved_at", "is", null)
     .gte("resolved_at", `${todayIso}T00:00:00Z`)
-    .lt("resolved_at", `${todayIso}T23:59:59Z`);
+    .lt("resolved_at", `${todayIso}T23:59:59Z`)
+    .eq("trading_mode", getTradingMode());
   if (error) throw new Error(`getTodayResolvedPnl failed: ${error.message}`);
   return (data ?? []).reduce((sum, r) => sum + (r.pnl ?? 0), 0);
 }
@@ -149,13 +161,18 @@ export async function getAllResolved() {
     .from("weather_trades")
     .select("*")
     .in("result", ["WIN", "LOSS"])
+    .eq("trading_mode", getTradingMode())
     .order("resolved_at", { ascending: false });
   if (error) throw new Error(`getAllResolved failed: ${error.message}`);
   return data ?? [];
 }
 
 export async function getAllTrades(status = null) {
-  let query = supabase.from("weather_trades").select("*").order("id", { ascending: false });
+  let query = supabase
+    .from("weather_trades")
+    .select("*")
+    .eq("trading_mode", getTradingMode())
+    .order("id", { ascending: false });
   if (status) query = query.eq("status", status);
   const { data, error } = await query;
   if (error) throw new Error(`getAllTrades failed: ${error.message}`);
@@ -188,7 +205,8 @@ async function getPaperBankroll() {
   const { data, error } = await supabase
     .from("weather_trades")
     .select("pnl")
-    .in("result", ["WIN", "LOSS"]);
+    .in("result", ["WIN", "LOSS"])
+    .eq("trading_mode", "paper");
   if (error) throw new Error(`getPaperBankroll failed: ${error.message}`);
   const realizedPnl = (data ?? []).reduce((sum, r) => sum + (r.pnl ?? 0), 0);
   return BASE_BANKROLL + realizedPnl;

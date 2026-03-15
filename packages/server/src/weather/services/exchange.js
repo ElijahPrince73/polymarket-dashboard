@@ -4,6 +4,9 @@ import { Wallet } from "ethers";
 
 let _client = null;
 
+// Runtime trading mode — defaults to paper (safe), toggled via UI
+let _liveMode = (process.env.TRADING_MODE || "paper").toLowerCase() === "live";
+
 export function getClobClient() {
   if (_client) return _client;
   const host = process.env.CLOB_HOST || "https://clob.polymarket.com";
@@ -21,7 +24,12 @@ export function getClobClient() {
 }
 
 export function isLiveMode() {
-  return (process.env.TRADING_MODE || "paper").toLowerCase() === "live";
+  return _liveMode;
+}
+
+export function setLiveMode(enabled) {
+  _liveMode = !!enabled;
+  return _liveMode;
 }
 
 export async function getBalance() {

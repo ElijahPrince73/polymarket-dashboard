@@ -7,7 +7,7 @@ import { runMonitor } from "./services/monitor.js";
 import { dailySummary, rollingReport } from "./services/reporter.js";
 import { runResolver } from "./services/resolver.js";
 import { runTradeDiscovery } from "./services/trader.js";
-import { cancelOrder, getBalance, getOpenOrders, isLiveMode } from "./services/exchange.js";
+import { cancelOrder, getBalance, getOpenOrders, isLiveMode, setLiveMode } from "./services/exchange.js";
 
 const app = express();
 const port = Number.parseInt(process.env.PORT || "3001", 10);
@@ -18,7 +18,7 @@ const publicDir = path.resolve(__dirname, "..", "public");
 const startedAt = Date.now();
 const tickIntervalMs = 30 * 60 * 1000;
 const tradingEnabled = config.MIN_EDGE >= 0;
-let displayTradingMode = isLiveMode() ? "live" : "paper";
+// tradingMode is now derived from exchange.isLiveMode() — no separate display variable
 let lastTickAt = null;
 let lastTickResult = null;
 let tickInFlight = null;
@@ -58,8 +58,7 @@ app.get("/api/status", async (_req, res) => {
   const liveBalance = live ? await getBalance() : null;
   res.json({
     tradingEnabled,
-    tradingMode: displayTradingMode,
-    envTradingMode: live ? "live" : "paper",
+    tradingMode: live ? "live" : "paper",
     bankroll,
     liveBalance,
     openTrades: db.getOpenTrades().length,
@@ -114,12 +113,11 @@ app.post("/api/mode", (req, res) => {
     res.status(400).json({ error: 'Mode must be "paper" or "live"' });
     return;
   }
-  displayTradingMode = mode;
+  const nowLive = setLiveMode(mode === "live");
+  console.log(`[${new Date().toISOString()}] Trading mode switched to ${nowLive ? "LIVE" : "PAPER"}`);
   res.json({
     ok: true,
-    tradingMode: displayTradingMode,
-    envTradingMode: isLiveMode() ? "live" : "paper",
-    note: "Display mode updated. Actual trading mode is controlled by TRADING_MODE env.",
+    tradingMode: nowLive ? "live" : "paper",
   });
 });
 

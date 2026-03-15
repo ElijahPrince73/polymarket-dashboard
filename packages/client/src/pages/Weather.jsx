@@ -286,33 +286,24 @@ export default function Weather() {
             </span>
           </div>
           <div className="space-y-2">
-            {openPositions.length > 0 ? openPositions.map((trade, index) => {
-              const unrealizedPnl = Number(trade.unrealizedPnl);
-              const showUnrealizedPnl = Number.isFinite(unrealizedPnl);
-              return (
-                <div
-                  key={String(trade.id || trade.order_id || `open-position-${index}`)}
-                  className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">
-                        {formatShareCount(trade.actualPosition)} {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
-                    </div>
-                    <div className="text-right text-xs text-slate-400">
-                      <p>{formatDate(trade.event_date || trade.created_at)}</p>
-                      {showUnrealizedPnl && (
-                        <p className={unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                          uPnL {formatCurrency(unrealizedPnl)}
-                        </p>
-                      )}
-                    </div>
+            {openPositions.length > 0 ? openPositions.map((trade, index) => (
+              <div
+                key={String(trade.id || trade.order_id || `open-position-${index}`)}
+                className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-200">
+                      {formatShareCount(trade.actualPosition)} {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
+                  </div>
+                  <div className="text-right text-xs text-slate-400">
+                    <p>{formatDate(trade.event_date || trade.created_at)}</p>
                   </div>
                 </div>
-              );
-            }) : (
+              </div>
+            )) : (
               <p className="text-sm text-slate-500">No filled positions right now.</p>
             )}
           </div>

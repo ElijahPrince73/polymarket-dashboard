@@ -69,18 +69,35 @@ function enrichTradesWithOpenOrders(trades, openOrders) {
   );
 
   return (trades || []).map((trade) => {
-    const fillSize = Math.max(0, toFiniteNumber(trade.fill_size) ?? 0);
     const liveOrder = trade.order_id ? orderMap.get(String(trade.order_id)) ?? null : null;
-    const pendingOrderSize = liveOrder ? getRemainingOrderSize(liveOrder, fillSize) : 0;
-
-    return {
-      ...trade,
-      actualPosition: fillSize,
-      pendingOrderSize,
-      orderStillActive: !!liveOrder,
-      liveOrder,
-      unrealizedPnl: null,
-    };
+    
+    if (liveOrder) {
+      // Use live order data as truth
+      const originalSize = toFiniteNumber(liveOrder.original_size) ?? toFiniteNumber(liveOrder.size) ?? 0;
+      const matchedSize = toFiniteNumber(liveOrder.size_matched) ?? 0;
+      const actualPosition = Math.max(0, matchedSize);
+      const pendingOrderSize = Math.max(0, originalSize - matchedSize);
+      
+      return {
+        ...trade,
+        actualPosition,
+        pendingOrderSize,
+        orderStillActive: true,
+        liveOrder,
+        unrealizedPnl: null,
+      };
+    } else {
+      // No live order found - use database fill_size as fallback
+      const fillSize = Math.max(0, toFiniteNumber(trade.fill_size) ?? 0);
+      return {
+        ...trade,
+        actualPosition: fillSize,
+        pendingOrderSize: 0,
+        orderStillActive: false,
+        liveOrder: null,
+        unrealizedPnl: null,
+      };
+    }
   });
 }
 

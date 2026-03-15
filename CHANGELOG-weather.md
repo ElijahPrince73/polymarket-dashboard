@@ -1,5 +1,30 @@
 # Weather Bot Changelog
 
+## 2026-03-15 — v4: UI/UX Improvements + Data Accuracy
+
+### Trading Mode Separation
+- **Fixed mode toggle** — paper/live switch now actually changes trading behavior at runtime
+- Added `trading_mode` column to database — paper and live trades fully separated
+- Clean slate when switching modes — no more paper data bleeding into live view
+
+### Position vs Order Clarity  
+- **Replaced confusing "3/5" displays** with clear "Open Positions" and "Pending Orders" sections
+- **Open Positions:** Actual shares owned (real market exposure)
+- **Pending Orders:** Orders sitting on book (just reserving collateral)
+- Fixed data sync issue — now uses live Polymarket order data as truth instead of stale database values
+
+### UI Improvements
+- Removed useless uPnL display (was always $0.00)
+- Clean position cards: shares, city, side, price, date
+- Separate stat cards for positions vs pending orders
+- Much clearer understanding of actual vs potential exposure
+
+### Technical Changes
+- Added `/api/weather/open-orders` endpoint for live order status
+- Enhanced `/api/weather/trades` with computed `actualPosition`, `pendingOrderSize`, `orderStillActive` fields
+- `enrichTradesWithOpenOrders()` function cross-references database with live CLOB data
+- Uses `size_matched` from live orders instead of database `fill_size`
+
 ## 2026-03-06 — v3: YES-First Strategy
 
 ### Problem with v2

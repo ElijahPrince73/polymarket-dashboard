@@ -41,9 +41,22 @@ packages/server/src/btc/
 ```
 
 ### Weather Bot
-Temperature prediction bot for 12 cities. Uses multi-model blending (HRRR, NAM, ECMWF, GFS) with EWMA calibration and half-Kelly sizing.
+Temperature prediction bot for 30+ cities worldwide. Uses multi-model blending (HRRR, NAM, ECMWF, GFS) with multinomial bucket normalization and fractional Kelly sizing.
 
-**Cities:** London, Dallas, Atlanta, NYC, Seoul, Chicago, Miami, Houston, Phoenix, Denver, LA, SF
+**Strategy:**
+- **YES-first approach** — find buckets containing forecast temperature, buy YES if underpriced
+- **NO bets** only on extreme mispricings (>25% edge) on far-from-forecast buckets  
+- **Multi-model blending** — HRRR/NAM (short-range), ECMWF/GFS/ICON (global), JMA (Asia), with 3°C forecast uncertainty
+- **Multinomial normalization** — proper probability distribution across all market buckets
+- **Fractional Kelly sizing** — position size scales with edge (4% max bankroll per trade)
+
+**Cities:** London, Dallas, Atlanta, NYC, Seoul, Chicago, Miami, Houston, Phoenix, Denver, LA, SF, Seattle, Minneapolis, Portland, Nashville, Detroit, Las Vegas, Austin, Paris, Berlin, Madrid, Tokyo, Mumbai, Bangkok, Singapore, Sydney, Wellington, Toronto, São Paulo, Mexico City
+
+**Key Features:**
+- **Paper/Live mode separation** — independent trading histories and bankroll tracking
+- **Real-time position tracking** — separate "Open Positions" (filled shares) vs "Pending Orders" (on book)
+- **Smart order management** — uses live CLOB data to show accurate fill status
+- **Risk management** — daily exposure limits (25%), per-city caps (4%), stop-loss on 5% drawdown
 
 ## Tech Stack
 

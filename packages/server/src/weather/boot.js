@@ -9,7 +9,7 @@ import { runMonitor } from "./services/monitor.js";
 import { dailySummary, rollingReport } from "./services/reporter.js";
 import { runResolver } from "./services/resolver.js";
 import { runTradeDiscovery } from "./services/trader.js";
-import { cancelOrder, getBalance, getOpenOrders, isLiveMode } from "./services/exchange.js";
+import { cancelOrder, getBalance, getOpenOrders, isLiveMode, setLiveMode } from "./services/exchange.js";
 
 let startedAt = null;
 let lastTickAt = null;
@@ -74,8 +74,7 @@ export function mountRoutes(app) {
     const openTrades = await db.getOpenTrades();
     res.json({
       tradingEnabled,
-      tradingMode: isLiveMode() ? "live" : "paper",
-      envTradingMode: live ? "live" : "paper",
+      tradingMode: live ? "live" : "paper",
       bankroll,
       liveBalance,
       openTrades: openTrades.length,
@@ -152,11 +151,11 @@ export function mountRoutes(app) {
     if (mode !== "paper" && mode !== "live") {
       return res.status(400).json({ error: 'Mode must be "paper" or "live"' });
     }
+    const nowLive = setLiveMode(mode === "live");
+    console.log(`[Weather] Trading mode switched to ${nowLive ? "LIVE" : "PAPER"}`);
     res.json({
       ok: true,
-      tradingMode: mode,
-      envTradingMode: isLiveMode() ? "live" : "paper",
-      note: "Display mode updated. Actual trading mode is controlled by TRADING_MODE env.",
+      tradingMode: nowLive ? "live" : "paper",
     });
   });
 

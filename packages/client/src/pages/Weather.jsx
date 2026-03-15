@@ -14,6 +14,19 @@ function formatCurrency(value) {
   return currencyFormatter.format(Number(value || 0));
 }
 
+function formatShareCount(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return '0 shares';
+  const rounded = Number.isInteger(amount) ? String(amount) : amount.toFixed(2).replace(/\.?0+$/, '');
+  return `${rounded} ${Math.abs(amount) === 1 ? 'share' : 'shares'}`;
+}
+
+function formatPriceCents(value) {
+  const cents = Number(value || 0) * 100;
+  if (!Number.isFinite(cents)) return '--';
+  return `${cents.toFixed(Number.isInteger(cents) ? 0 : 1)}¢`;
+}
+
 function formatDate(value) {
   if (!value) return '--';
   return new Date(value).toLocaleString('en-US', {
@@ -52,6 +65,7 @@ function normalizeCityRows(byCity) {
 export default function Weather() {
   const { data: status, refetch: refetchStatus } = useApi('/api/weather/status');
   const { data: trades, refetch: refetchTrades } = useApi('/api/weather/trades');
+  const { data: openOrders, refetch: refetchOpenOrders } = useApi('/api/weather/open-orders');
   const { data: summary, refetch: refetchSummary } = useApi('/api/weather/summary');
 
   const [cityFilter, setCityFilter] = useState('ALL');
@@ -60,7 +74,7 @@ export default function Weather() {
   const [showLiveConfirm, setShowLiveConfirm] = useState(false);
 
   async function refreshAll() {
-    await Promise.all([refetchStatus(), refetchTrades(), refetchSummary()]);
+    await Promise.all([refetchStatus(), refetchTrades(), refetchOpenOrders(), refetchSummary()]);
   }
 
   async function changeMode(newMode) {
@@ -103,7 +117,17 @@ export default function Weather() {
 
   const openPositions = useMemo(() => {
     return (trades || [])
-      .filter((trade) => String(trade.status || '').toUpperCase() === 'OPEN')
+      .filter((trade) => String(trade.status || '').toUpperCase() === 'OPEN' && Number(trade.actualPosition || 0) > 0)
+      .sort((a, b) => {
+        const dateA = a.event_date || a.created_at || '';
+        const dateB = b.event_date || b.created_at || '';
+        return dateB.localeCompare(dateA);
+      });
+  }, [trades]);
+
+  const pendingOrders = useMemo(() => {
+    return (trades || [])
+      .filter((trade) => String(trade.status || '').toUpperCase() === 'OPEN' && Number(trade.pendingOrderSize || 0) > 0 && trade.orderStillActive)
       .sort((a, b) => {
         const dateA = a.event_date || a.created_at || '';
         const dateB = b.event_date || b.created_at || '';
@@ -142,7 +166,7 @@ export default function Weather() {
   const isLive = String(status?.tradingMode || 'paper').toUpperCase() === 'LIVE';
   const balance = Number(status?.bankroll || 0);
   const realized = Number(rolling.pnl || 0);
-  const openTrades = Number(status?.openTrades || 0);
+  const openOrderCount = Array.isArray(openOrders) ? openOrders.length : 0;
   const totalTrades = Number(rolling.trades || 0);
   const winRate = totalTrades > 0 ? (Number(rolling.wins || 0) / totalTrades) * 100 : 0;
 
@@ -237,16 +261,97 @@ export default function Weather() {
         );
       })()}
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
         <StatCard label="Balance" value={formatCurrency(balance)} />
         <StatCard
           label="Realized P&L"
           value={formatCurrency(realized)}
           color={realized >= 0 ? 'profit' : 'loss'}
         />
-        <StatCard label="Open Trades" value={String(openTrades)} />
+        <StatCard label="Open Positions" value={String(openPositions.length)} />
+        <StatCard label="Pending Orders" value={String(pendingOrders.length)} />
         <StatCard label="Win Rate" value={`${winRate.toFixed(2)}%`} color={winRate >= 50 ? 'profit' : 'neutral'} />
         <StatCard label="Total Trades" value={String(totalTrades)} />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <article className="rounded-lg border border-emerald-700/40 bg-slate-900 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-100">Open Positions</h2>
+              <p className="text-xs text-slate-400">Filled shares with real market exposure.</p>
+            </div>
+            <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
+              {openPositions.length} live
+            </span>
+          </div>
+          <div className="space-y-2">
+            {openPositions.length > 0 ? openPositions.map((trade, index) => {
+              const unrealizedPnl = Number(trade.unrealizedPnl);
+              const showUnrealizedPnl = Number.isFinite(unrealizedPnl);
+              return (
+                <div
+                  key={String(trade.id || trade.order_id || `open-position-${index}`)}
+                  className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">
+                        {formatShareCount(trade.actualPosition)} {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
+                    </div>
+                    <div className="text-right text-xs text-slate-400">
+                      <p>{formatDate(trade.event_date || trade.created_at)}</p>
+                      {showUnrealizedPnl && (
+                        <p className={unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                          uPnL {formatCurrency(unrealizedPnl)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }) : (
+              <p className="text-sm text-slate-500">No filled positions right now.</p>
+            )}
+          </div>
+        </article>
+
+        <article className="rounded-lg border border-amber-700/40 bg-slate-900 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-100">Pending Orders</h2>
+              <p className="text-xs text-slate-400">Resting orders on the book. Collateral is reserved, but exposure is not filled yet.</p>
+            </div>
+            <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300">
+              {pendingOrders.length} active
+            </span>
+          </div>
+          <div className="space-y-2">
+            {pendingOrders.length > 0 ? pendingOrders.map((trade, index) => (
+              <div
+                key={String(trade.order_id || trade.id || `pending-order-${index}`)}
+                className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-200">
+                      {formatShareCount(trade.pendingOrderSize)} pending {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
+                  </div>
+                  <div className="text-right text-xs text-slate-400">
+                    <p>{formatDate(trade.event_date || trade.created_at)}</p>
+                    <p>{trade.order_id ? `Order ${String(trade.order_id).slice(0, 10)}` : `Live orders ${openOrderCount}`}</p>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <p className="text-sm text-slate-500">No active resting orders.</p>
+            )}
+          </div>
+        </article>
       </section>
 
       <section>

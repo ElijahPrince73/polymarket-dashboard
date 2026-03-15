@@ -20,6 +20,70 @@ let tradingEnabled = true;
 
 const tickIntervalMs = 10 * 60 * 1000;
 
+function toFiniteNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function getOrderId(order) {
+  const id = order?.id ?? order?.orderID ?? order?.orderId;
+  return id == null ? null : String(id);
+}
+
+function getRemainingOrderSize(order, fillSize = 0) {
+  const explicitRemaining = [
+    order?.remaining_size,
+    order?.remainingSize,
+    order?.unfilled_size,
+    order?.unfilledSize,
+  ]
+    .map(toFiniteNumber)
+    .find((value) => value != null);
+
+  if (explicitRemaining != null) {
+    return Math.max(0, explicitRemaining);
+  }
+
+  const originalSize = [
+    order?.original_size,
+    order?.originalSize,
+    order?.initial_size,
+    order?.initialSize,
+  ]
+    .map(toFiniteNumber)
+    .find((value) => value != null);
+
+  if (originalSize != null) {
+    return Math.max(0, originalSize - fillSize);
+  }
+
+  const fallbackSize = toFiniteNumber(order?.size);
+  return Math.max(0, (fallbackSize ?? 0) - fillSize);
+}
+
+function enrichTradesWithOpenOrders(trades, openOrders) {
+  const orderMap = new Map(
+    (openOrders || [])
+      .map((order) => [getOrderId(order), order])
+      .filter(([id]) => !!id)
+  );
+
+  return (trades || []).map((trade) => {
+    const fillSize = Math.max(0, toFiniteNumber(trade.fill_size) ?? 0);
+    const liveOrder = trade.order_id ? orderMap.get(String(trade.order_id)) ?? null : null;
+    const pendingOrderSize = liveOrder ? getRemainingOrderSize(liveOrder, fillSize) : 0;
+
+    return {
+      ...trade,
+      actualPosition: fillSize,
+      pendingOrderSize,
+      orderStillActive: !!liveOrder,
+      liveOrder,
+      unrealizedPnl: null,
+    };
+  });
+}
+
 async function runTickCycle() {
   if (tickInFlight) return tickInFlight;
   tickInFlight = (async () => {
@@ -85,8 +149,12 @@ export function mountRoutes(app) {
 
   router.get("/trades", async (req, res) => {
     const status = typeof req.query.status === "string" ? req.query.status : null;
-    const trades = await db.getAllTrades(status);
-    res.json(trades);
+    const [trades, openOrders] = await Promise.all([db.getAllTrades(status), getOpenOrders()]);
+    res.json(enrichTradesWithOpenOrders(trades, openOrders));
+  });
+
+  router.get("/open-orders", async (_req, res) => {
+    res.json(await getOpenOrders());
   });
 
   router.get("/trades/:id", async (req, res) => {

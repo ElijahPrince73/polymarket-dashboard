@@ -92,25 +92,9 @@ export async function runMonitor(dbApi = db) {
         status: "SWITCHED",
         notes: switchNote,
       });
-      await dbApi.insertTrade({
-        city: row.city,
-        station: row.station,
-        question: row.question,
-        market_url: row.market_url,
-        event_date: row.event_date,
-        side: oppSide,
-        entry_price: oppPrice,
-        model_prob: row.model_prob,
-        edge: edgeOpp,
-        size_pct: row.size_pct ?? 0.01,
-        stake_usd: row.stake_usd ?? 1,
-        status: "OPEN",
-        result: "PENDING",
-        notes: `Switch from ${row.side}`,
-        token_id: oppSide === "YES" ? tokenIds[yesIdx] ?? null : tokenIds[noIdx] ?? null,
-        condition_id: market.conditionId ?? row.condition_id ?? null,
-        neg_risk: market.negRisk ? 1 : 0,
-      });
+      // DISABLED: Don't create phantom trades. Let trader.js handle new positions normally.
+      // This was creating fake "switch" trades that never had real orders.
+      console.log(`[MONITOR] Position switch suggested for ${row.city} ${row.side} -> ${oppSide}, but not creating phantom trade`);
       updated += 1;
       switched += 1;
     }

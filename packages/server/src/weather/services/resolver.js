@@ -56,6 +56,12 @@ export async function runResolver(dbApi = db) {
     const isClosed = market.closed || event.closed || final.confidence >= 0.95;
     if (!isClosed) continue;
 
+    // Only resolve trades that had real orders placed
+    if (!row.order_id) {
+      console.log(`[RESOLVER] Skipping phantom trade ${row.id} (${row.city} ${row.side}) - no order_id`);
+      continue;
+    }
+
     const win = (final.val === 1 && row.side === "YES") || (final.val === 0 && row.side === "NO");
     const pnl =
       row.entry_price != null && row.stake_usd != null

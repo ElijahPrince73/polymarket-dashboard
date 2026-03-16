@@ -104,16 +104,24 @@ function enrichTradesWithOpenOrders(trades, openOrders) {
 async function runTickCycle() {
   if (tickInFlight) return tickInFlight;
   tickInFlight = (async () => {
-    const trade = await runTradeDiscovery(db);
-    const monitor = await runMonitor(db);
-    const resolve = await runResolver(db);
-    const summary = {
-      daily: await dailySummary(),
-      rolling: await rollingReport(db, 30),
-    };
-    lastTickAt = new Date().toISOString();
-    lastTickResult = { trade, monitor, resolve, summary };
-    return lastTickResult;
+    try {
+      console.log(`[Weather] Starting tick cycle at ${new Date().toISOString()}`);
+      const trade = await runTradeDiscovery(db);
+      const monitor = await runMonitor(db);
+      const resolve = await runResolver(db);
+      const summary = {
+        daily: await dailySummary(),
+        rolling: await rollingReport(db, 30),
+      };
+      lastTickAt = new Date().toISOString();
+      lastTickResult = { trade, monitor, resolve, summary };
+      console.log(`[Weather] Tick completed: ${trade.logs?.length || 0} discoveries, ${monitor.updated || 0} monitored, ${resolve.resolved || 0} resolved`);
+      return lastTickResult;
+    } catch (error) {
+      console.error(`[Weather] Tick cycle failed:`, error);
+      lastTickAt = new Date().toISOString(); // Still update timestamp so we know tick attempted
+      throw error; // Re-throw so the catch in initialize() handles it
+    }
   })().finally(() => {
     tickInFlight = null;
   });
@@ -139,7 +147,7 @@ export async function initialize() {
     });
   }, tickIntervalMs);
 
-  console.log("[Weather] Initialized — tick interval: 30 min");
+  console.log(`[Weather] Initialized — tick interval: ${tickIntervalMs / 60000} min`);
 }
 
 /**

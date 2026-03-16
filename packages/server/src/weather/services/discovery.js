@@ -91,7 +91,10 @@ export async function forecastHourlyBlended(lat, lon, tz, models, targetDate = n
       `&hourly=temperature_2m&timezone=${encodeURIComponent(tz)}&models=${encodeURIComponent(model)}&forecast_days=3`;
     const data = await fetchJson(url);
     const day = dayTempsFromHourly(data?.hourly, dateStr);
-    if (!day) throw new Error(`No hourly temperatures for ${model} on ${dateStr}`);
+    if (!day) {
+      console.warn(`[Weather] No hourly temperatures for ${model} on ${dateStr} - API may be down`);
+      return null; // Return null instead of throwing - let Promise.allSettled handle it
+    }
     return day;
   });
 

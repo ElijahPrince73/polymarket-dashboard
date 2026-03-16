@@ -261,7 +261,7 @@ export default function Weather() {
         );
       })()}
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="Balance" value={formatCurrency(balance)} />
         <StatCard
           label="Realized P&L"

@@ -216,7 +216,7 @@ export default function Portfolio() {
 
       <section className="rounded-lg border border-slate-700 bg-slate-900 p-5">
         <p className="text-xs uppercase tracking-wide text-slate-400">Performance Hero</p>
-        <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-5">
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           <div className="md:col-span-2">
             <p className="text-xs uppercase tracking-wide text-slate-400">Total Equity</p>
             <p className="mt-1 text-4xl font-bold tracking-tight text-slate-100">

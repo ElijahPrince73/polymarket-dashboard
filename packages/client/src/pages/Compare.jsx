@@ -170,7 +170,7 @@ export default function Compare() {
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {comparisonMetrics.map((metric) => {
           const btcScore = valueForComparison(metric.key, metric.btc);
           const weatherScore = valueForComparison(metric.key, metric.weather);

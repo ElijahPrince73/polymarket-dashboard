@@ -383,7 +383,7 @@ export default function Btc() {
       )}
 
       {/* Stats */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard label={isLive ? "Available USDC" : "Balance"} value={formatCurrency(balance)} />
         <StatCard
           label="Realized P&L"

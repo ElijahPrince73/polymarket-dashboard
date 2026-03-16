@@ -87,11 +87,10 @@ function enrichTradesWithOpenOrders(trades, openOrders) {
         unrealizedPnl: null,
       };
     } else {
-      // No live order found - use database fill_size as fallback
-      const fillSize = Math.max(0, toFiniteNumber(trade.fill_size) ?? 0);
+      // No live order found - position is 0 (order was cancelled/expired/filled and settled)
       return {
         ...trade,
-        actualPosition: fillSize,
+        actualPosition: 0,
         pendingOrderSize: 0,
         orderStillActive: false,
         liveOrder: null,

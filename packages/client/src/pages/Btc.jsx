@@ -334,7 +334,7 @@ export default function Btc() {
         }
 
         return (
-          <section className={`flex items-center gap-3 rounded-lg border ${bannerBorder} ${bannerBg} px-4 py-3`}>
+          <section className={`flex flex-wrap items-center gap-2 rounded-lg border ${bannerBorder} ${bannerBg} px-3 py-3 md:gap-3 md:px-4`}>
             <span className="relative flex h-3 w-3">
               <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${dotColor} opacity-75`} />
               <span className={`relative inline-flex h-3 w-3 rounded-full ${dotColor}`} />
@@ -343,7 +343,7 @@ export default function Btc() {
             <span className="text-xs text-slate-400">{statusDetail}</span>
 
             {/* Mode Toggle */}
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex flex-wrap items-center gap-2 md:gap-3">
               <button
                 onClick={() => isLive ? changeMode({ target: { value: 'paper' } }) : setShowLiveConfirm(true)}
                 className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${

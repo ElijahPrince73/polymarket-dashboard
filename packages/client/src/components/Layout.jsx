@@ -41,7 +41,7 @@ export default function Layout({ children }) {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
+    <div className="flex min-h-screen max-w-[100vw] overflow-x-hidden bg-slate-950 text-slate-100">
       {/* Desktop sidebar — always open */}
       <aside className="hidden w-[220px] flex-col border-r border-slate-700 bg-slate-800 p-2 md:flex">
         <div className="mb-4 truncate px-2 pt-2 text-xs uppercase tracking-widest text-slate-400">
@@ -107,7 +107,7 @@ export default function Layout({ children }) {
       )}
 
       {/* Main content — top padding on mobile for fixed header */}
-      <main className="flex-1 bg-slate-950 px-4 pt-16 pb-4 md:px-6 md:pt-6 md:pb-6">{children}</main>
+      <main className="min-w-0 flex-1 overflow-x-hidden bg-slate-950 px-4 pt-16 pb-4 md:px-6 md:pt-6 md:pb-6">{children}</main>
     </div>
   );
 }

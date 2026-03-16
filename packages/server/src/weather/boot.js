@@ -9,7 +9,7 @@ import { runMonitor } from "./services/monitor.js";
 import { dailySummary, rollingReport } from "./services/reporter.js";
 import { runResolver } from "./services/resolver.js";
 import { runTradeDiscovery } from "./services/trader.js";
-import { cancelOrder, getBalance, getOpenOrders, isLiveMode, setLiveMode } from "./services/exchange.js";
+import { cancelOrder, getBalance, getOpenOrders, getTokenBalance, isLiveMode, setLiveMode } from "./services/exchange.js";
 
 let startedAt = null;
 let lastTickAt = null;
@@ -87,10 +87,19 @@ function enrichTradesWithOpenOrders(trades, openOrders) {
         unrealizedPnl: null,
       };
     } else {
-      // No live order found - position is 0 (order was cancelled/expired/filled and settled)
+      // No live order found - check token balance for settled positions
+      let actualPosition = 0;
+      if (isLiveMode() && trade.token_id) {
+        try {
+          actualPosition = await getTokenBalance(trade.token_id);
+        } catch (error) {
+          console.error(`Failed to get token balance for ${trade.city}:`, error);
+        }
+      }
+      
       return {
         ...trade,
-        actualPosition: 0,
+        actualPosition,
         pendingOrderSize: 0,
         orderStillActive: false,
         liveOrder: null,

@@ -94,3 +94,15 @@ export async function getOpenOrders() {
     return [];
   }
 }
+
+export async function getTokenBalance(tokenId) {
+  const client = getClobClient();
+  try {
+    // Get balance for a specific token ID
+    const response = await client.getBalanceAllowance({ asset_id: tokenId });
+    return Number(response?.balance || 0);
+  } catch (e) {
+    console.error(`[exchange] getTokenBalance failed for ${tokenId}:`, e?.message);
+    return 0;
+  }
+}

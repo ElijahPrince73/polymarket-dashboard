@@ -61,15 +61,14 @@ function getRemainingOrderSize(order, fillSize = 0) {
   return Math.max(0, (fallbackSize ?? 0) - fillSize);
 }
 
-async function enrichTradesWithOpenOrders(trades, openOrders) {
+function enrichTradesWithOpenOrders(trades, openOrders) {
   const orderMap = new Map(
     (openOrders || [])
       .map((order) => [getOrderId(order), order])
       .filter(([id]) => !!id)
   );
 
-  const enrichedTrades = [];
-  for (const trade of trades || []) {
+  return (trades || []).map((trade) => {
     const liveOrder = trade.order_id ? orderMap.get(String(trade.order_id)) ?? null : null;
     
     if (liveOrder) {
@@ -79,36 +78,27 @@ async function enrichTradesWithOpenOrders(trades, openOrders) {
       const actualPosition = Math.max(0, matchedSize);
       const pendingOrderSize = Math.max(0, originalSize - matchedSize);
       
-      enrichedTrades.push({
+      return {
         ...trade,
         actualPosition,
         pendingOrderSize,
         orderStillActive: true,
         liveOrder,
         unrealizedPnl: null,
-      });
+      };
     } else {
-      // No live order found - check token balance for settled positions
-      let actualPosition = 0;
-      if (isLiveMode() && trade.token_id) {
-        try {
-          actualPosition = await getTokenBalance(trade.token_id);
-        } catch (error) {
-          console.error(`Failed to get token balance for ${trade.city}:`, error);
-        }
-      }
-      
-      enrichedTrades.push({
+      // No live order found - use database fill_size as fallback
+      const fillSize = Math.max(0, toFiniteNumber(trade.fill_size) ?? 0);
+      return {
         ...trade,
-        actualPosition,
+        actualPosition: fillSize,
         pendingOrderSize: 0,
         orderStillActive: false,
         liveOrder: null,
         unrealizedPnl: null,
-      });
+      };
     }
-  }
-  return enrichedTrades;
+  });
 }
 
 async function runTickCycle() {
@@ -185,8 +175,7 @@ export function mountRoutes(app) {
   router.get("/trades", async (req, res) => {
     const status = typeof req.query.status === "string" ? req.query.status : null;
     const [trades, openOrders] = await Promise.all([db.getAllTrades(status), getOpenOrders()]);
-    const enrichedTrades = await enrichTradesWithOpenOrders(trades, openOrders);
-    res.json(enrichedTrades);
+    res.json(enrichTradesWithOpenOrders(trades, openOrders));
   });
 
   router.get("/open-orders", async (_req, res) => {

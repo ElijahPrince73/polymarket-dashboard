@@ -268,7 +268,7 @@ export function mountRoutes(app) {
             if (result.success) {
               cancelled.push(trade.order_id);
               await db.updateTrade(trade.id, { 
-                status: "CANCELLED", 
+                status: "STOP", 
                 notes: (trade.notes || "") + ` | CANCELLED: ${reason || "city threshold adjustment"}` 
               });
               dbUpdated.push(trade.id);

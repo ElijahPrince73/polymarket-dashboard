@@ -252,6 +252,55 @@ export function mountRoutes(app) {
     });
   });
 
+  router.post("/cancel-selective", async (req, res) => {
+    try {
+      const { tradeIds, orderIds, reason } = req.body;
+      const cancelled = [];
+      const cancelErrors = [];
+      const dbUpdated = [];
+      
+      // Cancel by trade IDs
+      if (tradeIds && Array.isArray(tradeIds)) {
+        const trades = await Promise.all(tradeIds.map(id => db.getTradeById(id)));
+        for (const trade of trades.filter(Boolean)) {
+          if (trade.order_id) {
+            const result = await cancelOrder(trade.order_id);
+            if (result.success) {
+              cancelled.push(trade.order_id);
+              await db.updateTrade(trade.id, { 
+                status: "CANCELLED", 
+                notes: (trade.notes || "") + ` | CANCELLED: ${reason || "city threshold adjustment"}` 
+              });
+              dbUpdated.push(trade.id);
+            } else {
+              cancelErrors.push({ tradeId: trade.id, orderId: trade.order_id, error: result.error });
+            }
+          }
+        }
+      }
+      
+      // Cancel by order IDs directly
+      if (orderIds && Array.isArray(orderIds)) {
+        for (const orderId of orderIds) {
+          const result = await cancelOrder(orderId);
+          if (result.success) cancelled.push(orderId);
+          else cancelErrors.push({ orderId, error: result.error });
+        }
+      }
+
+      res.json({
+        ok: true,
+        reason: reason || "city threshold adjustment",
+        cancelled: cancelled.length,
+        cancelErrors: cancelErrors.length,
+        dbUpdated: dbUpdated.length,
+        details: { cancelled, cancelErrors, dbUpdated }
+      });
+    } catch (error) {
+      res.status(500).json({ error: error?.message || "Selective cancel failed" });
+    }
+  });
+
   router.post("/kill", async (_req, res) => {
     try {
       const orders = await getOpenOrders();

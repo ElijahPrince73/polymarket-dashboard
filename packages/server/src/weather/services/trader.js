@@ -11,6 +11,7 @@ import {
   MIN_PRICE,
   STOP_DAILY_DD_PCT,
 } from "../config.js";
+import { getCityThresholds, getCityFilters } from "../city-specific-thresholds.js";
 import db from "../db.js";
 import {
   applyCalibration,
@@ -248,13 +249,21 @@ export async function runTradeDiscovery(dbApi = db) {
         let side, price, edge, tokenId;
         const isForecastBucket = forecastBuckets.has(question);
 
-        if (isForecastBucket && edgeYes >= MIN_EDGE) {
+        // Get city-specific thresholds
+        const cityThresholds = getCityThresholds(city.name);
+        const cityFilters = getCityFilters(city.name);
+        
+        // Apply city-specific minimum edge requirement
+        const requiredEdgeYes = Math.max(MIN_EDGE, cityThresholds.minEdge);
+        const requiredEdgeNo = Math.max(0.25, cityThresholds.minEdge + 0.10); // NO trades need higher edge
+        
+        if (isForecastBucket && edgeYes >= requiredEdgeYes) {
           // Buy YES on forecast-aligned bucket — the core strategy
           side = "YES";
           price = yesPrice;
           edge = edgeYes;
           tokenId = tokenIds[yesIdx];
-        } else if (!isForecastBucket && edgeNo >= 0.25) {
+        } else if (!isForecastBucket && edgeNo >= requiredEdgeNo) {
           // Sell (buy NO) on far-from-forecast buckets only with huge edge
           side = "NO";
           price = noPrice;
@@ -265,11 +274,31 @@ export async function runTradeDiscovery(dbApi = db) {
         }
 
         const marketProbYes = yesPrice;
-        if (marketProbYes < MIN_PRICE || marketProbYes > MAX_PRICE) continue;
-        if (Math.abs(modelProb - marketProbYes) < MIN_ABS_MODEL_DIFF) continue;
+        if (marketProbYes < MIN_PRICE || marketProbYes > cityThresholds.maxPrice) continue;
+        
+        // Apply city-specific model difference requirement
+        const requiredModelDiff = Math.max(MIN_ABS_MODEL_DIFF, cityThresholds.minModelDiff);
+        if (Math.abs(modelProb - marketProbYes) < requiredModelDiff) continue;
+        
+        // City-specific additional filters
+        if (cityFilters.requireMinModels && forecast?.modelsUsed < cityFilters.requireMinModels) {
+          console.log(`[TRADER] Skipping ${city.name}: only ${forecast?.modelsUsed} models, need ${cityFilters.requireMinModels}`);
+          continue;
+        }
+        
+        if (cityFilters.requirePriceDiscrepancy && Math.abs(modelProb - marketProbYes) < cityFilters.requirePriceDiscrepancy) {
+          console.log(`[TRADER] Skipping ${city.name}: price discrepancy ${Math.abs(modelProb - marketProbYes).toFixed(3)} below required ${cityFilters.requirePriceDiscrepancy}`);
+          continue;
+        }
 
         const sizePct = kellySize(modelProb, price, side);
         let stakeUsd = bankroll * sizePct;
+        
+        // Apply city-specific position sizing
+        if (cityFilters.sizingMultiplier) {
+          stakeUsd *= cityFilters.sizingMultiplier;
+          console.log(`[TRADER] Reducing ${city.name} position by ${((1-cityFilters.sizingMultiplier)*100).toFixed(0)}% due to poor performance`);
+        }
         const candidateDate = dateStr || localDate;
         const cityDateKey = `${city.name}|${candidateDate}`;
         const dailyCap = bankroll * MAX_DAILY_EXPOSURE_PCT;

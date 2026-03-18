@@ -161,6 +161,14 @@ export async function assembleStatus() {
       lossCooldownSeconds: CONFIG.paperTrading.lossCooldownSeconds ?? 30,
       winCooldownSeconds: CONFIG.paperTrading.winCooldownSeconds ?? 30,
       noEntryFinalMinutes: CONFIG.paperTrading.noEntryFinalMinutes ?? 1.5,
+      onlyEntryFinalMinutes: CONFIG.paperTrading.onlyEntryFinalMinutes ?? 2.5,
+      tradingHoursEnabled: CONFIG.paperTrading.tradingHoursEnabled ?? false,
+      tradingHoursStart: CONFIG.paperTrading.tradingHoursStart ?? 6,
+      tradingHoursEnd: CONFIG.paperTrading.tradingHoursEnd ?? 17,
+      earlyCutSec: CONFIG.paperTrading.earlyCutSec ?? 45,
+      stopLossGraceSec: CONFIG.paperTrading.stopLossGraceSec ?? 20,
+      lossCooldownEnabled: CONFIG.paperTrading.lossCooldownEnabled ?? true,
+      lossCooldownMinutes: CONFIG.paperTrading.lossCooldownMinutes ?? 5,
       }; // end return
     })(),
     // Guardrail live state (for gate status table)

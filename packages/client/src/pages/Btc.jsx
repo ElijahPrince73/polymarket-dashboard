@@ -81,78 +81,117 @@ function buildGateChecks(status) {
   const llm = rt.llmPrediction;
   const llmLabel = llm ? `${llm.direction === 'UP' ? '🟢' : '🔴'} ${llm.direction} (${(llm.confidence * 100).toFixed(0)}%)` : 'Waiting for next market...';
 
+  // Entry price for display
+  const entryPriceUp = rt.polyPriceUp ?? rt.polyPriceCentsUp;
+  const entryPriceDown = rt.polyPriceDown ?? rt.polyPriceCentsDown;
+  const maxEntryPx = et.maxEntryPolyPrice ?? 0.60;
+  const minPolyPx = et.minPolyPrice ?? 0.40;
+
+  // Trading hours
+  const nowPst = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const pstHour = nowPst.getHours();
+  const tradingStart = et.tradingHoursStart ?? 6;
+  const tradingEnd = et.tradingHoursEnd ?? 17;
+  const inHours = pstHour >= tradingStart && pstHour < tradingEnd;
+
   return [
+    // ── SECTION: Requirements ──
     {
-      check: 'Trading Enabled',
+      check: '📋 Trading Enabled',
       current: status.tradingEnabled ? 'Yes' : 'No',
       required: 'Yes',
       pass: !!status.tradingEnabled,
     },
     {
-      check: 'Recommendation',
+      check: '🕐 Trading Hours',
+      current: inHours ? `${pstHour}:00 PST ✓` : `${pstHour}:00 PST ✗`,
+      required: `${tradingStart} AM – ${tradingEnd > 12 ? tradingEnd - 12 : tradingEnd} PM PST`,
+      pass: inHours && !isBlocked('trading hours'),
+    },
+    {
+      check: '📊 Recommendation',
       current: rt.recAction ? `${rt.recAction} ${rt.recSide || ''} (${rt.recPhase || ''})` : 'None',
       required: 'ENTER signal',
       pass: rt.recAction === 'ENTER',
     },
     {
-      check: 'Model Confidence',
+      check: '⏱️ Entry Window',
+      current: rt.timeLeftMin != null ? (() => { const m = Number(rt.timeLeftMin); const mins = Math.floor(m); const secs = Math.round((m - mins) * 60); return `${mins}m ${secs}s left`; })() : '--',
+      required: `Last ${et.onlyEntryFinalMinutes ?? 2.5}m of market`,
+      pass: !isBlocked('early') && !isBlocked('late'),
+    },
+    {
+      check: '🎯 Model Confidence',
       current: rt.modelUp != null ? `Up ${pct(rt.modelUp)} / Down ${pct(rt.modelDown)}` : '--',
       required: `≥ ${pct(et.minModelMaxProb)}`,
       pass: !isBlocked('conviction') && !isBlocked('prob'),
     },
     {
-      check: 'Kelly Size',
+      check: '💰 Entry Price',
+      current: entryPriceUp != null ? `Up ${cents(entryPriceUp)} / Down ${cents(entryPriceDown)}` : '--',
+      required: `${cents(minPolyPx)} – ${cents(maxEntryPx)}`,
+      pass: !isBlocked('price') && !isBlocked('bounds'),
+    },
+    {
+      check: '💵 Kelly Size',
       current: `$${kellySize} (${(clampedKelly * 100).toFixed(1)}%)`,
       required: '$25–$250',
       pass: kellySize >= 25,
     },
     {
-      check: 'Orderbook',
-      current: obLabel,
-      required: '—',
-      pass: true,
-    },
-    {
-      check: 'LLM Signal',
-      current: llmLabel,
-      required: 'Shadow',
-      pass: true,
-    },
-    {
-      check: 'Spread',
+      check: '📈 Spread',
       current: rt.spreadUp != null ? `Up ${cents(rt.spreadUp)} / Down ${cents(rt.spreadDown)}` : '--',
       required: `≤ ${cents(et.maxSpread)}`,
       pass: !isBlocked('spread'),
     },
     {
-      check: 'Liquidity',
+      check: '🏦 Liquidity',
       current: rt.liquidityNum != null ? `$${Number(rt.liquidityNum).toLocaleString()}` : '--',
       required: `≥ $${et.minLiquidity || '--'}`,
       pass: !isBlocked('liquidity'),
     },
     {
-      check: 'Time to Settlement',
-      current: rt.timeLeftMin != null ? (() => { const m = Number(rt.timeLeftMin); const mins = Math.floor(m); const secs = Math.round((m - mins) * 60); return `${mins}m ${secs}s`; })() : '--',
+      check: '📕 Orderbook',
+      current: obLabel,
       required: '—',
       pass: true,
     },
     {
-      check: 'Circuit Breaker',
-      current: g.circuitBreakerTripped ? `Tripped (${g.consecutiveLosses} losses)` : `Clear (${g.consecutiveLosses || 0} losses)`,
+      check: '🤖 LLM Signal',
+      current: llmLabel,
+      required: 'Shadow only',
+      pass: true,
+    },
+    // ── SECTION: Safeguards ──
+    {
+      check: '🔄 One Trade/Market',
+      current: isBlocked('one trade') ? 'Already traded' : 'Available',
+      required: 'Available',
+      pass: !isBlocked('one trade'),
+    },
+    {
+      check: '📍 Open Position',
+      current: g.hasOpenPosition ? 'Yes' : 'No',
+      required: 'No',
+      pass: !g.hasOpenPosition,
+    },
+    {
+      check: '⏸️ Loss Cooldown',
+      current: isBlocked('cooldown') ? blockers.find(b => b.toLowerCase().includes('cooldown')) || 'Active' : `Clear (${g.consecutiveLosses || 0} losses)`,
+      required: 'Clear',
+      pass: !isBlocked('cooldown'),
+    },
+    {
+      check: '🛑 Circuit Breaker',
+      current: g.circuitBreakerTripped ? `Tripped (${g.consecutiveLosses} losses)` : `Clear`,
       required: 'Clear',
       pass: !g.circuitBreakerTripped,
     },
     {
-      check: 'Max Drawdown',
+      check: '📉 Max Drawdown',
       current: bal != null ? `$${Number(bal).toFixed(0)} / $${Number(status.balance?.starting ?? 1000).toFixed(0)}` : '--',
-      required: '≥ 85%',
+      required: '≥ 85% of starting',
       pass: !isBlocked('drawdown'),
-    },
-    {
-      check: 'Open Position',
-      current: g.hasOpenPosition ? 'Yes' : 'No',
-      required: 'No',
-      pass: !g.hasOpenPosition,
     },
   ];
 }

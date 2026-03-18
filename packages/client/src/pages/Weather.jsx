@@ -118,16 +118,22 @@ export default function Weather() {
   const openPositions = useMemo(() => {
     return (trades || [])
       .filter((trade) => {
-        // Show positions where we actually own shares (regardless of status)
+        // Only show truly ACTIVE positions - those still pending resolution
         const position = Number(trade.actualPosition || 0);
         const status = String(trade.status || '').toUpperCase();
-        // Include positions > 0 that aren't explicitly skipped
-        return position > 0 && status !== 'SKIP';
+        const eventDate = trade.event_date;
+        const today = new Date().toISOString().slice(0, 10);
+        
+        // Must have position and be in OPEN status and event date hasn't passed
+        return position > 0 && 
+               status === 'OPEN' && 
+               eventDate && 
+               eventDate >= today;
       })
       .sort((a, b) => {
         const dateA = a.event_date || a.created_at || '';
         const dateB = b.event_date || b.created_at || '';
-        return dateB.localeCompare(dateA);
+        return dateA.localeCompare(dateB); // Sort by event date (soonest first)
       });
   }, [trades]);
 

@@ -31,6 +31,7 @@ import { reconcilePositions, SYNC_STATUS } from '../../domain/reconciliation.js'
 import { computeTradeSizeWithFees } from '../../domain/sizing.js';
 import { capPnl, computeMaxLossUsd } from '../../domain/exitEvaluator.js';
 import { deriveMarketSettlementTime } from '../../services/settlementService.js';
+import { getAllTokenIds } from '../market/tokenMapping.js';
 
 /** @import { OrderRequest, OrderResult, CloseRequest, CloseResult, PositionView, BalanceSnapshot } from '../../domain/types.js' */
 
@@ -594,7 +595,18 @@ export class LiveExecutor extends OrderExecutor {
     // Prune old terminal orders (>30 min)
     this.orderManager.pruneOldOrders(30 * 60_000);
 
-    const rawPositions = computePositionsFromTrades(this._cachedTrades);
+    const allPositions = computePositionsFromTrades(this._cachedTrades);
+
+    // Filter to only BTC market tokens — other bots (weather) share the same wallet
+    const market = this.getMarket();
+    const btcTokenIds = market ? new Set(getAllTokenIds(market)) : new Set();
+    // Also include the openTrade tokenID if present
+    if (this.openTrade?.tokenID) btcTokenIds.add(this.openTrade.tokenID);
+
+    const rawPositions = btcTokenIds.size > 0
+      ? allPositions.filter(p => btcTokenIds.has(p.tokenID))
+      : allPositions;
+
     this._hadPositionLastLoop = rawPositions.length > 0;
 
     // ── Reconciliation: compare local tracking vs CLOB positions ──

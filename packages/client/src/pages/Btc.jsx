@@ -236,21 +236,12 @@ export default function Btc() {
   const redeemableCount = positions?.redeemableCount || 0;
 
   // Mode-aware trades for table/chart — must be defined BEFORE sortedTrades
+  // Both paper and live trades use the same structured format from /api/btc/trades
   const trades = useMemo(() => {
-    if (!isLive) return paperTrades || [];
-    return (liveTrades || []).map((t, i) => ({
-      id: t.id || `live-${i}`,
-      entryTime: t.match_time || t.last_update,
-      exitTime: t.match_time || t.last_update,
-      timestamp: t.match_time || t.last_update,
-      side: String(t.trader_side || t.side || '--').toUpperCase(),
-      entryPrice: Number(t.price || 0),
-      exitPrice: Number(t.price || 0),
-      pnl: null,
-      exitReason: t.status || '--',
-      contractSize: Number(t.size || 0) * Number(t.price || 0),
-    }));
-  }, [isLive, paperTrades, liveTrades]);
+    const allTrades = paperTrades || [];
+    if (!isLive) return allTrades.filter(t => t.mode !== 'live');
+    return allTrades.filter(t => t.mode === 'live');
+  }, [isLive, paperTrades]);
 
   const sortedTrades = useMemo(() => {
     return [...(trades || [])].sort((a, b) => parseTimestamp(b) - parseTimestamp(a));

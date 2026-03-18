@@ -29,6 +29,8 @@ import { LIFECYCLE_STATES } from '../../domain/orderLifecycle.js';
 import { withOrderRetry, createFailureEvent } from '../../domain/retryPolicy.js';
 import { reconcilePositions, SYNC_STATUS } from '../../domain/reconciliation.js';
 import { computeTradeSizeWithFees } from '../../domain/sizing.js';
+import { capPnl, computeMaxLossUsd } from '../../domain/exitEvaluator.js';
+import { deriveMarketSettlementTime } from '../../services/settlementService.js';
 
 /** @import { OrderRequest, OrderResult, CloseRequest, CloseResult, PositionView, BalanceSnapshot } from '../../domain/types.js' */
 
@@ -78,6 +80,10 @@ export class LiveExecutor extends OrderExecutor {
     this._orderTimeoutMs = CONFIG.liveTrading?.orderTimeoutMs ?? 30_000;
     this._maxOrderRetries = CONFIG.liveTrading?.maxOrderRetries ?? 3;
     this._retryDelays = [1000, 2000, 4000];
+
+    // Structured trade tracking (mirrors PaperExecutor)
+    /** @type {Object|null} Currently open structured trade */
+    this.openTrade = null;
 
     // Reconciliation state (Phase 3: LIVE-02)
     this._reconciliationStatus = {
@@ -264,12 +270,44 @@ export class LiveExecutor extends OrderExecutor {
         resp,
       });
 
+      // ── Create structured trade record (same shape as PaperExecutor) ──
+      const tradeId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
+      const fillSizeUsd = buyPrice * size;
+      const structuredTrade = {
+        id: tradeId,
+        timestamp: new Date().toISOString(),
+        marketSlug,
+        marketSettlementTime: deriveMarketSettlementTime(marketSlug),
+        side,
+        instrument: 'POLY',
+        entryPrice: buyPrice,
+        shares: size,
+        contractSize: fillSizeUsd,
+        status: 'OPEN',
+        entryTime: new Date().toISOString(),
+        exitPrice: null,
+        exitTime: null,
+        pnl: 0,
+        entryPhase: phase,
+        entryReason: 'Live',
+        maxUnrealizedPnl: 0,
+        minUnrealizedPnl: 0,
+        tokenID,
+        orderID: resp?.orderID || null,
+        mode: 'live',
+        ...metadata,
+      };
+
+      this.openTrade = structuredTrade;
+      // Sync to Supabase
+      globalThis.__syncTradeToStore?.(structuredTrade, 'live');
+
       return {
         filled: true,
-        tradeId: tokenID,
+        tradeId,
         fillPrice: buyPrice,
         fillShares: size,
-        fillSizeUsd: buyPrice * size,
+        fillSizeUsd,
         orderId: resp?.orderID || null,
       };
     } catch (e) {
@@ -296,7 +334,7 @@ export class LiveExecutor extends OrderExecutor {
    * @returns {Promise<CloseResult>}
    */
   async closePosition(request) {
-    const { tradeId, side, shares, reason, tokenID } = request;
+    const { tradeId, side, shares, reason, tokenID, exitMetadata } = request;
     const tid = tokenID || tradeId;
 
     if (!tid) {
@@ -417,11 +455,63 @@ export class LiveExecutor extends OrderExecutor {
       // Clean up tracking state
       this._lastExitAttemptMsByToken.delete(tid);
 
+      // ── Update structured trade record with exit data ──
+      let tradePnl = 0;
+      let finalReason = reason;
+      const trade = this.openTrade;
+
+      if (trade) {
+        // Compute PnL: exit value - entry cost
+        const tradeShares = isNum(trade.shares) ? trade.shares : size;
+        const valueNow = tradeShares * sellPrice;
+        const rawPnl = valueNow - trade.contractSize;
+
+        // Apply max-loss cap (same logic as PaperExecutor)
+        const capped = capPnl(
+          rawPnl,
+          trade.contractSize,
+          tradeShares,
+          sellPrice,
+          this.config,
+        );
+        tradePnl = capped.pnl;
+
+        // Override reason if loss was capped
+        const effectiveMaxLoss = computeMaxLossUsd(trade.contractSize, this.config);
+        const maxLossAbs = Math.abs(effectiveMaxLoss ?? 0);
+        if (rawPnl < -maxLossAbs && tradePnl !== rawPnl) {
+          finalReason = `Max Loss ($${maxLossAbs.toFixed(2)})`;
+        }
+
+        // Update trade record
+        trade.exitPrice = capped.exitPrice;
+        trade.exitTime = new Date().toISOString();
+        trade.pnl = Number(tradePnl.toFixed(2));
+        trade.status = 'CLOSED';
+        trade.exitReason = finalReason;
+
+        // Spread exit-time indicator snapshots onto the trade
+        if (exitMetadata && typeof exitMetadata === 'object') {
+          Object.assign(trade, exitMetadata);
+        }
+
+        if (!trade.marketSettlementTime) {
+          trade.marketSettlementTime = deriveMarketSettlementTime(trade.marketSlug);
+        }
+        if (trade.btcAtExit === undefined || trade.btcAtExit === null) {
+          trade.btcAtExit = trade.btcSpotAtExit ?? exitMetadata?.btcSpotAtExit ?? null;
+        }
+
+        // Sync closed trade to Supabase
+        globalThis.__syncTradeToStore?.(trade, 'live');
+        this.openTrade = null;
+      }
+
       return {
         closed: true,
         exitPrice: sellPrice,
-        pnl: 0, // Live PnL computed from trade history, not here
-        reason,
+        pnl: tradePnl,
+        reason: finalReason,
       };
     } catch (e) {
       // Create and store structured failure event
@@ -569,7 +659,42 @@ export class LiveExecutor extends OrderExecutor {
       }
     }
 
-    // Convert to PositionView[]
+    // If we have a structured openTrade, use it (better data than raw CLOB positions)
+    if (this.openTrade && this.openTrade.status === 'OPEN') {
+      const t = this.openTrade;
+      // Verify the position still exists on CLOB (avoid phantom trades)
+      const matchingRaw = rawPositions.find(p => p.tokenID === t.tokenID);
+      if (matchingRaw || rawPositions.length > 0) {
+        return [{
+          id: t.id,
+          side: t.side,
+          marketSlug: t.marketSlug,
+          entryPrice: t.entryPrice,
+          shares: t.shares,
+          contractSize: t.contractSize,
+          mark: null,
+          unrealizedPnl: null,
+          maxUnrealizedPnl: t.maxUnrealizedPnl ?? 0,
+          minUnrealizedPnl: t.minUnrealizedPnl ?? 0,
+          entryTime: t.entryTime,
+          lastTradeTime: null,
+          tokenID: t.tokenID,
+          outcome: t.side,
+          tradable: true,
+        }];
+      } else if (rawPositions.length === 0) {
+        // Position gone from CLOB but we still have openTrade — force close
+        console.warn('[live] openTrade exists but no CLOB position found. Force-closing structured trade.');
+        t.exitTime = new Date().toISOString();
+        t.status = 'CLOSED';
+        t.exitReason = 'Position lost (CLOB sync)';
+        t.pnl = 0;
+        globalThis.__syncTradeToStore?.(t, 'live');
+        this.openTrade = null;
+      }
+    }
+
+    // Fallback: Convert raw CLOB positions to PositionView[]
     return rawPositions.map((p) => ({
       id: p.tokenID,
       side: String(p.outcome || '').toUpperCase() === 'DOWN' ? 'DOWN' : 'UP',

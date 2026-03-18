@@ -473,6 +473,7 @@ export class SupabaseTradeStore {
       entryPhase: row.entryPhase,
       marketSlug: row.marketSlug,
       sideInferred: row.sideInferred,
+      mode: row.mode || 'paper',
     };
 
     const enrichments = [

@@ -147,6 +147,16 @@ export class LiveExecutor extends OrderExecutor {
       return emptyResult;
     }
 
+    // Ensure collateral allowance before every trade
+    try {
+      const approvalStatus = await this.approvalService.checkAndApproveCollateral();
+      if (approvalStatus.state !== 'approved') {
+        console.warn(`[live] Collateral approval not ready: ${approvalStatus.state} (allowance: ${approvalStatus.allowance})`);
+      }
+    } catch (e) {
+      console.warn(`[live] Collateral approval check failed: ${e?.message}`);
+    }
+
     // Check collateral
     const collateral = await this._collateralUsd();
     const maxPer = CONFIG.liveTrading?.maxPerTradeUsd || sizeUsd;

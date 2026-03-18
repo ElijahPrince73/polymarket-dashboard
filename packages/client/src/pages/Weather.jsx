@@ -117,7 +117,13 @@ export default function Weather() {
 
   const openPositions = useMemo(() => {
     return (trades || [])
-      .filter((trade) => String(trade.status || '').toUpperCase() === 'OPEN' && Number(trade.actualPosition || 0) > 0)
+      .filter((trade) => {
+        // Show positions where we actually own shares (regardless of status)
+        const position = Number(trade.actualPosition || 0);
+        const status = String(trade.status || '').toUpperCase();
+        // Include positions > 0 that aren't explicitly skipped
+        return position > 0 && status !== 'SKIP';
+      })
       .sort((a, b) => {
         const dateA = a.event_date || a.created_at || '';
         const dateB = b.event_date || b.created_at || '';

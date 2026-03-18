@@ -239,6 +239,52 @@ export function mountRoutes(app) {
     res.json({ ok: true, tradingEnabled: false });
   });
 
+  router.post("/sync-orders", async (_req, res) => {
+    try {
+      const [dbTrades, liveOrders] = await Promise.all([
+        db.getAllTrades("OPEN"),
+        getOpenOrders()
+      ]);
+      
+      const liveOrderMap = new Map(liveOrders.map(o => [o.id, o]));
+      let updated = 0;
+      let restored = 0;
+      
+      // Update database trades that were marked SKIP but still have live orders
+      for (const trade of await db.getAllTrades("SKIP")) {
+        if (trade.order_id && liveOrderMap.has(trade.order_id)) {
+          await db.updateTrade(trade.id, { status: "OPEN" });
+          restored++;
+        }
+      }
+      
+      // Update live order data
+      for (const trade of [...dbTrades, ...(await db.getAllTrades("OPEN"))]) {
+        if (trade.order_id && liveOrderMap.has(trade.order_id)) {
+          const liveOrder = liveOrderMap.get(trade.order_id);
+          const sizeMatched = parseFloat(liveOrder.size_matched || 0);
+          
+          if (Math.abs(sizeMatched - (trade.fill_size || 0)) > 0.001) {
+            await db.updateTrade(trade.id, { 
+              fill_size: sizeMatched,
+              notes: (trade.notes || "") + " | Synced with live order" 
+            });
+            updated++;
+          }
+        }
+      }
+      
+      res.json({
+        ok: true,
+        liveOrdersFound: liveOrders.length,
+        tradesRestored: restored,
+        tradesUpdated: updated
+      });
+    } catch (error) {
+      res.status(500).json({ error: error?.message || "Sync failed" });
+    }
+  });
+
   router.post("/mode", (req, res) => {
     const mode = String(req.body?.mode || "").toLowerCase();
     if (mode !== "paper" && mode !== "live") {
@@ -314,7 +360,11 @@ export function mountRoutes(app) {
         else cancelErrors.push({ id, error: result.error });
       }
 
-      const skipped = await db.markOpenTradesAsSkip();
+      // Only mark as SKIP if cancellation actually succeeded
+      let skipped = 0;
+      if (cancelled.length === orders.length && cancelErrors.length === 0) {
+        skipped = await db.markOpenTradesAsSkip();
+      }
 
       res.json({
         ok: true,
@@ -322,6 +372,7 @@ export function mountRoutes(app) {
         cancelledCount: cancelled.length,
         cancelErrors,
         openTradesMarkedSkip: skipped,
+        warning: cancelErrors.length > 0 ? "Some orders failed to cancel" : null
       });
     } catch (error) {
       res.status(500).json({ error: error?.message || "Kill switch failed" });

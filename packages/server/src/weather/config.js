@@ -393,11 +393,12 @@ export const MODEL_CANDIDATES = {
 };
 
 export const BASE_BANKROLL = 100;
-export const MIN_EDGE = 0.15;
+export const MIN_EDGE = 0.25; // Raised from 0.15 to 0.25 (25% minimum edge)
 export const MIN_PRICE = 0.15;
 export const MAX_PRICE = 0.85;
-export const MIN_ABS_MODEL_DIFF = 0.08;
+export const MIN_ABS_MODEL_DIFF = 0.12; // Raised from 0.08 to 0.12 for higher confidence
 export const MIN_HOURS_TO_CLOSE = 3;
+export const MIN_MODEL_CONSENSUS = 4; // Require 4+ weather models to agree
 export const MAX_DAILY_EXPOSURE_PCT = 0.25;
 export const MAX_CITY_EXPOSURE_PCT = 0.04;
 export const STOP_DAILY_DD_PCT = 0.05;

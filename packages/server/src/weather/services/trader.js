@@ -8,6 +8,7 @@ import {
   MIN_ABS_MODEL_DIFF,
   MIN_EDGE,
   MIN_HOURS_TO_CLOSE,
+  MIN_MODEL_CONSENSUS,
   MIN_PRICE,
   STOP_DAILY_DD_PCT,
 } from "../config.js";
@@ -135,6 +136,12 @@ export async function runTradeDiscovery(dbApi = db) {
     ]);
     const day = pickDailyForDate(daily.daily, localDate);
     if (!day && !blendedTemps) continue;
+
+    // Check model consensus - require minimum number of models agreeing
+    if (blendedTemps && blendedTemps.modelsUsed < MIN_MODEL_CONSENSUS) {
+      console.log(`[TRADER] Skipping ${city.name}: only ${blendedTemps.modelsUsed} models, need ${MIN_MODEL_CONSENSUS}`);
+      continue;
+    }
 
     const dayUse = {
       tmax: blendedTemps?.tmax ?? day?.tmax,

@@ -352,8 +352,8 @@ export class LiveExecutor extends OrderExecutor {
       return { closed: false, exitPrice: 0, pnl: 0, reason };
     }
 
-    // Exit spam guard (30s cooldown)
-    const cooldownMs = 30_000;
+    // Exit spam guard (5s cooldown — enough to prevent double-sends, short enough for 5-min markets)
+    const cooldownMs = 5_000;
     const now = Date.now();
     const lastAttempt = this._lastExitAttemptMsByToken.get(tid) ?? 0;
     if (now - lastAttempt < cooldownMs) {

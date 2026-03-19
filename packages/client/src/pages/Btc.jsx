@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { setBtcMode, startBtcTrading, stopBtcTrading } from '../api/btc.js';
+import { forceCloseBtcTrade, setBtcMode, startBtcTrading, stopBtcTrading } from '../api/btc.js';
 import StatCard from '../components/StatCard.jsx';
 // StatusPill removed — replaced by inline Trading Status Banner
 import useApi from '../hooks/useApi.js';
@@ -251,6 +251,11 @@ export default function Btc() {
     await refreshAll();
   }
 
+  async function forceCloseTrade() {
+    await forceCloseBtcTrade();
+    await refreshAll();
+  }
+
   const isLive = String(status?.mode || '').toUpperCase() === 'LIVE';
 
   // Compute live stats from structured trades in Supabase (same source as paper)
@@ -411,6 +416,16 @@ export default function Btc() {
               >
                 {isTrading ? 'Stop' : 'Start'}
               </button>
+              {hasOpen && (
+                <button
+                  type="button"
+                  onClick={forceCloseTrade}
+                  className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-500"
+                  title="Force close stuck trade"
+                >
+                  Force Close
+                </button>
+              )}
             </div>
           </section>
         );

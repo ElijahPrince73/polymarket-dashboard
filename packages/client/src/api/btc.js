@@ -36,6 +36,10 @@ export function stopBtcTrading() {
   return request('/api/btc/trading/stop', { method: 'POST' });
 }
 
+export function forceCloseBtcTrade() {
+  return request('/api/btc/force-close', { method: 'POST' });
+}
+
 export function setBtcMode(mode) {
   return request('/api/btc/mode', {
     method: 'POST',

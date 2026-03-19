@@ -709,9 +709,30 @@ export class LiveExecutor extends OrderExecutor {
         }];
       } else {
         // Our specific token is gone from CLOB — position was sold or settled
+        const settlementMs = (() => {
+          if (t.marketSettlementTime) {
+            const parsed = new Date(t.marketSettlementTime).getTime();
+            if (Number.isFinite(parsed)) return parsed;
+          }
+          const slug = t.marketSlug || '';
+          const match = slug.match(/(\d+)$/);
+          if (!match) return null;
+          return (Number(match[1]) + 300) * 1000;
+        })();
+
+        if (settlementMs && Date.now() > settlementMs + 60_000) {
+          console.warn(`[live] Auto-healing stuck trade: market ${t.marketSlug} settled ${((Date.now() - settlementMs) / 60000).toFixed(1)}min ago`);
+          t.exitTime = new Date().toISOString();
+          t.status = 'CLOSED';
+          t.exitReason = 'Auto-heal (market settled)';
+          t.pnl = 0;
+          globalThis.__syncTradeToStore?.(t, 'live');
+          this.openTrade = null;
+        }
+
         // Grace period: CLOB API can be slow to reflect fills, wait 30s
         const tradeAge = Date.now() - new Date(t.entryTime).getTime();
-        if (tradeAge > 30_000) {
+        if (this.openTrade && tradeAge > 30_000) {
           console.warn(`[live] openTrade token ${t.tokenID?.substring(0, 12)} not found on CLOB after ${(tradeAge/1000).toFixed(0)}s. Force-closing.`);
           t.exitTime = new Date().toISOString();
           t.status = 'CLOSED';

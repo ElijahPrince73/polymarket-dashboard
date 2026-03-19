@@ -905,6 +905,38 @@ router.post('/trading/stop', (req, res) => {
   res.json(ok({ tradingEnabled: false }));
 });
 
+router.post('/force-close', async (req, res) => {
+  try {
+    const mm = globalThis.__modeManager;
+    const engine = globalThis.__tradingEngine;
+    if (!engine) return res.status(500).json(fail('Trading engine not available'));
+
+    const executor = mm?.getActiveExecutor?.() || engine?.executor;
+    if (!executor) return res.status(500).json(fail('No active executor'));
+
+    const trade = executor.openTrade;
+    if (!trade) return res.status(400).json(fail('No open trade to close'));
+
+    trade.exitTime = new Date().toISOString();
+    trade.status = 'CLOSED';
+    trade.exitReason = 'Manual Force Close';
+    trade.pnl = 0;
+
+    globalThis.__syncTradeToStore?.(trade, trade.mode || executor.getMode());
+    executor.openTrade = null;
+
+    if (engine?.state) {
+      engine.state.hasOpenPosition = false;
+    }
+
+    console.log(`[force-close] Trade ${trade.id} force-closed by user`);
+    res.json(ok({ closed: true, tradeId: trade.id }));
+  } catch (error) {
+    console.error('Force close error:', error.message);
+    res.status(500).json(fail(`Force close failed: ${error.message}`));
+  }
+});
+
 router.post('/trading/kill', async (req, res) => {
   const engine = globalThis.__tradingEngine;
   if (!engine) return res.status(503).json(fail('Engine not initialized'));

@@ -684,9 +684,12 @@ export class LiveExecutor extends OrderExecutor {
     // If we have a structured openTrade, use it (better data than raw CLOB positions)
     if (this.openTrade && this.openTrade.status === 'OPEN') {
       const t = this.openTrade;
-      // Verify the position still exists on CLOB (avoid phantom trades)
-      const matchingRaw = rawPositions.find(p => p.tokenID === t.tokenID);
-      if (matchingRaw || rawPositions.length > 0) {
+      // Check if our specific token still has a position on CLOB
+      // Use allPositions (unfiltered) to avoid false negatives from BTC filter
+      const matchingPosition = allPositions.find(p => p.tokenID === t.tokenID);
+
+      if (matchingPosition) {
+        // Position confirmed on CLOB — return structured trade
         return [{
           id: t.id,
           side: t.side,
@@ -704,15 +707,30 @@ export class LiveExecutor extends OrderExecutor {
           outcome: t.side,
           tradable: true,
         }];
-      } else if (rawPositions.length === 0) {
-        // Position gone from CLOB but we still have openTrade — force close
-        console.warn('[live] openTrade exists but no CLOB position found. Force-closing structured trade.');
-        t.exitTime = new Date().toISOString();
-        t.status = 'CLOSED';
-        t.exitReason = 'Position lost (CLOB sync)';
-        t.pnl = 0;
-        globalThis.__syncTradeToStore?.(t, 'live');
-        this.openTrade = null;
+      } else {
+        // Our specific token is gone from CLOB — position was sold or settled
+        // Grace period: CLOB API can be slow to reflect fills, wait 30s
+        const tradeAge = Date.now() - new Date(t.entryTime).getTime();
+        if (tradeAge > 30_000) {
+          console.warn(`[live] openTrade token ${t.tokenID?.substring(0, 12)} not found on CLOB after ${(tradeAge/1000).toFixed(0)}s. Force-closing.`);
+          t.exitTime = new Date().toISOString();
+          t.status = 'CLOSED';
+          t.exitReason = 'Position lost (CLOB sync)';
+          t.pnl = 0;
+          globalThis.__syncTradeToStore?.(t, 'live');
+          this.openTrade = null;
+        } else {
+          // Within grace period — trust the structured trade
+          return [{
+            id: t.id, side: t.side, marketSlug: t.marketSlug,
+            entryPrice: t.entryPrice, shares: t.shares, contractSize: t.contractSize,
+            mark: null, unrealizedPnl: null,
+            maxUnrealizedPnl: t.maxUnrealizedPnl ?? 0,
+            minUnrealizedPnl: t.minUnrealizedPnl ?? 0,
+            entryTime: t.entryTime, lastTradeTime: null,
+            tokenID: t.tokenID, outcome: t.side, tradable: true,
+          }];
+        }
       }
     }
 

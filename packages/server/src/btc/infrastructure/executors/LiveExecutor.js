@@ -684,12 +684,33 @@ export class LiveExecutor extends OrderExecutor {
     // If we have a structured openTrade, use it (better data than raw CLOB positions)
     if (this.openTrade && this.openTrade.status === 'OPEN') {
       const t = this.openTrade;
-      // Check if our specific token still has a position on CLOB
-      // Use allPositions (unfiltered) to avoid false negatives from BTC filter
-      const matchingPosition = allPositions.find(p => p.tokenID === t.tokenID);
 
-      if (matchingPosition) {
-        // Position confirmed on CLOB — return structured trade
+      // ── Auto-heal: check FIRST, before anything else ──
+      // If market has settled 1+ min ago, close the trade regardless of CLOB state
+      const settlementMs = (() => {
+        if (t.marketSettlementTime) {
+          const parsed = new Date(t.marketSettlementTime).getTime();
+          if (Number.isFinite(parsed)) return parsed;
+        }
+        const slug = t.marketSlug || '';
+        const match = slug.match(/(\d+)$/);
+        if (!match) return null;
+        return (Number(match[1]) + 300) * 1000;
+      })();
+
+      if (settlementMs && Date.now() > settlementMs + 60_000) {
+        console.warn(`[live] Auto-healing stuck trade: market ${t.marketSlug} settled ${((Date.now() - settlementMs) / 60000).toFixed(1)}min ago`);
+        t.exitTime = new Date().toISOString();
+        t.status = 'CLOSED';
+        t.exitReason = 'Auto-heal (market settled)';
+        t.pnl = 0;
+        globalThis.__syncTradeToStore?.(t, 'live');
+        this.openTrade = null;
+        // Fall through — no open positions to return
+      }
+
+      // If trade is still open (not auto-healed), return it as the position
+      if (this.openTrade) {
         return [{
           id: t.id,
           side: t.side,
@@ -707,42 +728,6 @@ export class LiveExecutor extends OrderExecutor {
           outcome: t.side,
           tradable: true,
         }];
-      } else {
-        // Our specific token is gone from CLOB — position was sold or settled
-        const settlementMs = (() => {
-          if (t.marketSettlementTime) {
-            const parsed = new Date(t.marketSettlementTime).getTime();
-            if (Number.isFinite(parsed)) return parsed;
-          }
-          const slug = t.marketSlug || '';
-          const match = slug.match(/(\d+)$/);
-          if (!match) return null;
-          return (Number(match[1]) + 300) * 1000;
-        })();
-
-        if (settlementMs && Date.now() > settlementMs + 60_000) {
-          console.warn(`[live] Auto-healing stuck trade: market ${t.marketSlug} settled ${((Date.now() - settlementMs) / 60000).toFixed(1)}min ago`);
-          t.exitTime = new Date().toISOString();
-          t.status = 'CLOSED';
-          t.exitReason = 'Auto-heal (market settled)';
-          t.pnl = 0;
-          globalThis.__syncTradeToStore?.(t, 'live');
-          this.openTrade = null;
-        }
-
-        // CLOB API is slow to reflect fills — trust the structured trade
-        // until auto-heal fires (market settled + 1 min) or user hits Force Close
-        if (this.openTrade) {
-          return [{
-            id: t.id, side: t.side, marketSlug: t.marketSlug,
-            entryPrice: t.entryPrice, shares: t.shares, contractSize: t.contractSize,
-            mark: null, unrealizedPnl: null,
-            maxUnrealizedPnl: t.maxUnrealizedPnl ?? 0,
-            minUnrealizedPnl: t.minUnrealizedPnl ?? 0,
-            entryTime: t.entryTime, lastTradeTime: null,
-            tokenID: t.tokenID, outcome: t.side, tradable: true,
-          }];
-        }
       }
     }
 

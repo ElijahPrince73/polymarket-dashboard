@@ -122,9 +122,19 @@ export default function Weather() {
   const cityRows = normalizeCityRows(rolling.byCity);
 
   const openPositions = useMemo(() => {
-    // Use live Polymarket data if available, otherwise fallback to database
-    if (liveData?.positions) {
-      return liveData.positions;
+    // Use live Polymarket data if available, combining BOTH positions and pending orders
+    // because Polymarket shows all live orders as "positions" regardless of fill status
+    if (liveData?.positions && liveData?.pendingOrders) {
+      const allLiveOrders = [
+        ...liveData.positions.map(p => ({...p, type: 'filled', shares: p.actualPosition})),
+        ...liveData.pendingOrders.map(p => ({...p, type: 'pending', shares: p.pendingSize}))
+      ];
+      
+      return allLiveOrders.sort((a, b) => {
+        const dateA = a.event_date || a.created_at || '';
+        const dateB = b.event_date || b.created_at || '';
+        return dateA.localeCompare(dateB);
+      });
     }
     
     // Fallback to old logic for database-only display
@@ -145,7 +155,7 @@ export default function Weather() {
         const dateB = b.event_date || b.created_at || '';
         return dateA.localeCompare(dateB);
       });
-  }, [liveData?.positions, trades]);
+  }, [liveData?.positions, liveData?.pendingOrders, trades]);
 
   const pendingOrders = useMemo(() => {
     // Use live Polymarket data if available, otherwise fallback to database  
@@ -315,8 +325,8 @@ export default function Weather() {
         <article className="rounded-lg border border-emerald-700/40 bg-slate-900 p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-100">Open Positions</h2>
-              <p className="text-xs text-slate-400">Filled shares with real market exposure.</p>
+              <h2 className="text-lg font-semibold text-slate-100">Live Orders</h2>
+              <p className="text-xs text-slate-400">All active orders on Polymarket (filled + pending).</p>
             </div>
             <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
               {openPositions.length} live
@@ -331,7 +341,14 @@ export default function Weather() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-slate-200">
-                      {formatShareCount(trade.actualPosition)} {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                      {formatShareCount(trade.shares || trade.actualPosition)} {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                      {trade.type && (
+                        <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                          trade.type === 'filled' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'
+                        }`}>
+                          {trade.type === 'filled' ? 'FILLED' : 'PENDING'}
+                        </span>
+                      )}
                     </p>
                     <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
                   </div>

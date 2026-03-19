@@ -757,30 +757,34 @@ export class LiveExecutor extends OrderExecutor {
    * @returns {Promise<PositionView[]>}
    */
   async markPositions(positions, signals) {
-    // enrichPositionsWithMarks fetches orderbook midpoint for each token
-    const rawPositions = positions.map((p) => ({
-      tokenID: p.tokenID,
-      qty: p.shares,
-      avgEntry: p.entryPrice,
-      outcome: p.outcome || p.side,
-      lastTradeTime: p.lastTradeTime,
-      buyQty: 0,
-      buyNotional: 0,
-      sellQty: 0,
-      sellNotional: 0,
-    }));
+    // Use Polymarket prices from signals (same source as PaperExecutor)
+    // This is more reliable than fetching orderbooks per-token, which
+    // can return null/404 for active markets and caches them as expired
+    return positions.map((p) => {
+      const poly = signals.polyMarketSnapshot;
+      const rawUpC = signals.polyPricesCents?.UP ?? null;
+      const rawDownC = signals.polyPricesCents?.DOWN ?? null;
+      const obUp = poly?.orderbook?.up;
+      const obDown = poly?.orderbook?.down;
 
-    const enriched = await enrichPositionsWithMarks(rawPositions);
+      // For marking, use sell-side price (bid) — what we'd get if we sold
+      let mark = null;
+      if (p.side === 'UP') {
+        mark = isNum(rawUpC) && rawUpC > 0
+          ? rawUpC
+          : (isNum(obUp?.bestBid) && obUp.bestBid > 0 ? obUp.bestBid : null);
+      } else {
+        mark = isNum(rawDownC) && rawDownC > 0
+          ? rawDownC
+          : (isNum(obDown?.bestBid) && obDown.bestBid > 0 ? obDown.bestBid : null);
+      }
 
-    return positions.map((p, i) => {
-      const e = enriched[i];
-      if (!e) return p;
-      return {
-        ...p,
-        mark: e.mark ?? p.mark,
-        unrealizedPnl: e.unrealizedPnl ?? p.unrealizedPnl,
-        tradable: e.tradable !== false,
-      };
+      let unrealizedPnl = null;
+      if (isNum(mark) && isNum(p.shares) && isNum(p.contractSize)) {
+        unrealizedPnl = p.shares * mark - p.contractSize;
+      }
+
+      return { ...p, mark, unrealizedPnl };
     });
   }
 

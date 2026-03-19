@@ -50,7 +50,7 @@ function getPriceAtTime(targetMs) {
  * Fetch the definitive outcome from Polymarket's Gamma API.
  * Returns 'UP' or 'DOWN' if resolved, null if not yet resolved.
  */
-async function fetchPolymarketOutcome(marketSlug) {
+export async function fetchPolymarketOutcome(marketSlug) {
   if (!marketSlug) return null;
   try {
     const controller = new AbortController();

@@ -30,7 +30,7 @@ import { withOrderRetry, createFailureEvent } from '../../domain/retryPolicy.js'
 import { reconcilePositions, SYNC_STATUS } from '../../domain/reconciliation.js';
 import { computeTradeSizeWithFees } from '../../domain/sizing.js';
 import { capPnl, computeMaxLossUsd } from '../../domain/exitEvaluator.js';
-import { deriveMarketSettlementTime } from '../../services/settlementService.js';
+import { deriveMarketSettlementTime, fetchPolymarketOutcome } from '../../services/settlementService.js';
 import { getAllTokenIds } from '../market/tokenMapping.js';
 
 /** @import { OrderRequest, OrderResult, CloseRequest, CloseResult, PositionView, BalanceSnapshot } from '../../domain/types.js' */
@@ -736,13 +736,37 @@ export class LiveExecutor extends OrderExecutor {
       })();
 
       if (settlementMs && Date.now() > settlementMs + 60_000) {
-        console.warn(`[live] Auto-healing stuck trade: market ${t.marketSlug} settled ${((Date.now() - settlementMs) / 60000).toFixed(1)}min ago`);
-        t.exitTime = new Date().toISOString();
+        // Determine actual outcome from Polymarket API
+        let pnl = 0;
+        let exitReason = 'Auto-heal (market settled)';
+        try {
+          const winner = await fetchPolymarketOutcome(t.marketSlug);
+          if (winner) {
+            const won = winner === t.side;
+            if (won) {
+              // Winning side settles at $1 per share
+              pnl = Number((t.shares * (1.0 - t.entryPrice)).toFixed(2));
+              exitReason = `Market Settlement (Win)`;
+            } else {
+              // Losing side settles at $0
+              pnl = Number((-t.contractSize).toFixed(2));
+              exitReason = `Market Settlement (Loss)`;
+            }
+            console.log(`[live] Auto-heal: ${t.side} ${won ? 'WON' : 'LOST'} (winner: ${winner}) PnL: $${pnl}`);
+          } else {
+            console.warn(`[live] Auto-heal: couldn't determine outcome for ${t.marketSlug}`);
+          }
+        } catch (e) {
+          console.warn(`[live] Auto-heal outcome fetch failed: ${e?.message}`);
+        }
+
+        t.exitTime = new Date(settlementMs).toISOString();
         t.status = 'CLOSED';
-        t.exitReason = 'Auto-heal (market settled)';
-        t.pnl = 0;
+        t.exitReason = exitReason;
+        t.pnl = pnl;
         globalThis.__syncTradeToStore?.(t, 'live');
         this.openTrade = null;
+        console.warn(`[live] Auto-healed: ${t.marketSlug} | ${t.side} | PnL: $${pnl} | ${exitReason}`);
         // Fall through — no open positions to return
       }
 

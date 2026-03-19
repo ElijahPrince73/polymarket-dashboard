@@ -253,26 +253,37 @@ export default function Btc() {
 
   const isLive = String(status?.mode || '').toUpperCase() === 'LIVE';
 
+  // Compute live stats from structured trades in Supabase (same source as paper)
+  const liveBtcTrades = useMemo(() => {
+    if (!isLive) return [];
+    return (paperTrades || []).filter(t => t.mode === 'live' && t.status === 'CLOSED');
+  }, [isLive, paperTrades]);
+
+  const liveStats = useMemo(() => {
+    if (!liveBtcTrades.length) return { pnl: 0, winRate: 0, total: 0 };
+    const wins = liveBtcTrades.filter(t => t.pnl > 0).length;
+    const pnl = liveBtcTrades.reduce((s, t) => s + (t.pnl || 0), 0);
+    return { pnl, winRate: (wins / liveBtcTrades.length) * 100, total: liveBtcTrades.length };
+  }, [liveBtcTrades]);
+
   // Mode-aware stats
   const balance = isLive
     ? Number(portfolio?.collateral?.balance || 0)
     : Number(status?.balance?.balance || 0);
   const realized = isLive
-    ? Number(liveAnalytics?.realizedTotal || 0)
+    ? liveStats.pnl
     : Number(status?.balance?.realized || 0);
   const totalTrades = isLive
-    ? Number(liveAnalytics?.tradesCount || 0)
+    ? liveStats.total
     : Number(status?.ledgerSummary?.totalTrades || 0);
   const winRate = isLive
-    ? 0
+    ? liveStats.winRate
     : Number(status?.ledgerSummary?.winRate || 0);
-  const openTrades = status?.guardrails?.hasOpenPosition ? 1 : Number(openOrders?.length || 0);
+  const openTrades = status?.guardrails?.hasOpenPosition ? 1 : 0;
 
-  // Position data (live mode — shows available cash vs value in positions)
-  const positions = status?.positions;
-  const totalInPositions = positions?.totalInPositions || 0;
-  const totalRedeemable = positions?.totalRedeemable || 0;
-  const redeemableCount = positions?.redeemableCount || 0;
+  // Position data (live mode)
+  const totalRedeemable = status?.positions?.totalRedeemable || 0;
+  const redeemableCount = status?.positions?.redeemableCount || 0;
 
   // Mode-aware trades for table/chart — must be defined BEFORE sortedTrades
   // Both paper and live trades use the same structured format from /api/btc/trades
@@ -420,46 +431,23 @@ export default function Btc() {
           value={formatCurrency(realized)}
           color={realized >= 0 ? 'profit' : 'loss'}
         />
-        <StatCard label="Win Rate" value={isLive && winRate === 0 ? '--' : `${winRate.toFixed(2)}%`} color={winRate >= 50 ? 'profit' : 'neutral'} />
+        <StatCard label="Win Rate" value={totalTrades === 0 ? '--' : `${winRate.toFixed(1)}%`} color={winRate >= 50 ? 'profit' : 'neutral'} />
         <StatCard label="Total Trades" value={String(totalTrades)} />
-        <StatCard label="Open Trades" value={String(openTrades)} />
+        <StatCard label="Open Trade" value={openTrades > 0 ? 'Yes' : 'No'} color={openTrades > 0 ? 'profit' : 'neutral'} />
       </section>
 
-      {/* Position Balances (live mode only) + Redeemable Warning (always) */}
-      {((isLive && positions) || redeemableCount > 0) && (
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {isLive && (
-            <>
-              <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-4">
-                <div className="text-xs text-zinc-400 uppercase tracking-wide">In Positions</div>
-                <div className="mt-1 text-lg font-semibold text-zinc-100">
-                  {formatCurrency(totalInPositions)}
-                  {positions?.positionCount > 0 && (
-                    <span className="ml-2 text-xs text-zinc-400">({positions.positionCount} positions)</span>
-                  )}
-                </div>
-              </div>
-              <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-4">
-                <div className="text-xs text-zinc-400 uppercase tracking-wide">Total Value</div>
-                <div className="mt-1 text-lg font-semibold text-zinc-100">
-                  {formatCurrency(balance + totalInPositions)}
-                </div>
-              </div>
-            </>
-          )}
-          {redeemableCount > 0 && totalRedeemable > 0 && (
-            <div className="rounded-lg border border-red-500/50 bg-red-950/30 p-4 animate-pulse">
-              <div className="text-xs text-red-400 uppercase tracking-wide font-bold">⚠️ Stuck Tokens</div>
-              <div className="mt-1 text-lg font-semibold text-red-300">
-                {formatCurrency(totalRedeemable)}
-                <span className="ml-2 text-xs text-red-400">({redeemableCount} redeemable)</span>
-              </div>
-              <div className="mt-1 text-xs text-red-400">
-                Go to Polymarket UI → Portfolio → Redeem
-              </div>
-            </div>
-          )}
-        </section>
+      {/* Redeemable Warning (if any) */}
+      {redeemableCount > 0 && totalRedeemable > 0 && (
+        <div className="rounded-lg border border-red-500/50 bg-red-950/30 p-4 animate-pulse">
+          <div className="text-xs text-red-400 uppercase tracking-wide font-bold">⚠️ Stuck Tokens</div>
+          <div className="mt-1 text-lg font-semibold text-red-300">
+            {formatCurrency(totalRedeemable)}
+            <span className="ml-2 text-xs text-red-400">({redeemableCount} redeemable)</span>
+          </div>
+          <div className="mt-1 text-xs text-red-400">
+            Go to Polymarket UI → Portfolio → Redeem
+          </div>
+        </div>
       )}
 
       {/* Active Trade */}

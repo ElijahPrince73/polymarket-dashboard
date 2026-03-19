@@ -243,9 +243,9 @@ export class LiveExecutor extends OrderExecutor {
           return this.client.createAndPostOrder(
             { tokenID, price: buyPrice, size, side: 'BUY' },
             {},
-            OrderType.GTC,
+            OrderType.FOK, // Fill-Or-Kill: instant fill or cancel, no phantom orders
             false,
-            Boolean(CONFIG.liveTrading?.postOnly),
+            false, // postOnly OFF for FOK
           );
         },
         {
@@ -428,9 +428,9 @@ export class LiveExecutor extends OrderExecutor {
           return this.client.createAndPostOrder(
             { tokenID: tid, price: sellPrice, size, side: 'SELL' },
             {},
-            OrderType.GTC,
+            OrderType.FOK, // Fill-Or-Kill: instant fill or cancel
             false,
-            false, // postOnly OFF for exits
+            false,
           );
         },
         {

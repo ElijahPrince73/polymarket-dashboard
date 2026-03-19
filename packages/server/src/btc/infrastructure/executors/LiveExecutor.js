@@ -730,18 +730,9 @@ export class LiveExecutor extends OrderExecutor {
           this.openTrade = null;
         }
 
-        // Grace period: CLOB API can be slow to reflect fills, wait 30s
-        const tradeAge = Date.now() - new Date(t.entryTime).getTime();
-        if (this.openTrade && tradeAge > 30_000) {
-          console.warn(`[live] openTrade token ${t.tokenID?.substring(0, 12)} not found on CLOB after ${(tradeAge/1000).toFixed(0)}s. Force-closing.`);
-          t.exitTime = new Date().toISOString();
-          t.status = 'CLOSED';
-          t.exitReason = 'Position lost (CLOB sync)';
-          t.pnl = 0;
-          globalThis.__syncTradeToStore?.(t, 'live');
-          this.openTrade = null;
-        } else {
-          // Within grace period — trust the structured trade
+        // CLOB API is slow to reflect fills — trust the structured trade
+        // until auto-heal fires (market settled + 1 min) or user hits Force Close
+        if (this.openTrade) {
           return [{
             id: t.id, side: t.side, marketSlug: t.marketSlug,
             entryPrice: t.entryPrice, shares: t.shares, contractSize: t.contractSize,

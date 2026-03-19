@@ -281,7 +281,43 @@ export class LiveExecutor extends OrderExecutor {
         resp,
       });
 
-      // ── Create structured trade record (same shape as PaperExecutor) ──
+      // ── Verify fill: check if position actually appeared on CLOB ──
+      // FOK orders can be killed without filling. The CLOB SDK returns an
+      // orderID regardless. Wait briefly and check for the position.
+      let fillVerified = false;
+      const verifyDelays = [1000, 2000, 3000]; // 1s, 2s, 3s
+      for (const delay of verifyDelays) {
+        await new Promise(r => setTimeout(r, delay));
+        try {
+          const trades = await this.client.getTrades();
+          const hasPosition = (Array.isArray(trades) ? trades : []).some(
+            t => t?.asset_id === tokenID && String(t?.side).toUpperCase() === 'BUY'
+          );
+          if (hasPosition) {
+            fillVerified = true;
+            break;
+          }
+        } catch {
+          // retry
+        }
+      }
+
+      if (!fillVerified) {
+        console.warn(`[live] Order ${resp?.orderID?.substring(0, 12)} not confirmed after ${verifyDelays.reduce((a, b) => a + b, 0) / 1000}s. Treating as unfilled.`);
+        await appendLiveTrade({
+          type: 'OPEN_UNCONFIRMED',
+          ts: new Date().toISOString(),
+          marketSlug,
+          side,
+          tokenID,
+          price: buyPrice,
+          size,
+          orderID: resp?.orderID || null,
+        });
+        return emptyResult;
+      }
+
+      // ── Fill confirmed — create structured trade record ──
       const tradeId = Date.now().toString() + Math.random().toString(36).substring(2, 8);
       const fillSizeUsd = buyPrice * size;
       const structuredTrade = {
@@ -310,8 +346,9 @@ export class LiveExecutor extends OrderExecutor {
       };
 
       this.openTrade = structuredTrade;
-      // Sync to Supabase
       globalThis.__syncTradeToStore?.(structuredTrade, 'live');
+
+      console.log(`[live] Fill CONFIRMED: ${side} ${size} shares @ ${(buyPrice * 100).toFixed(1)}¢ ($${fillSizeUsd.toFixed(2)})`);
 
       return {
         filled: true,

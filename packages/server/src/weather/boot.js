@@ -233,15 +233,52 @@ export function mountRoutes(app) {
     try {
       // Get actual positions and orders from Polymarket
       const liveOrders = await getOpenOrders();
-      const [dbTrades] = await Promise.all([db.getAllTrades()]);
       
-      // Create maps for quick lookup
-      const dbTradeMap = new Map();
-      dbTrades.forEach(trade => {
-        if (trade.order_id) {
-          dbTradeMap.set(trade.order_id, trade);
+      // Create market info cache to avoid duplicate API calls
+      const marketCache = new Map();
+      
+      async function getMarketInfo(marketAddress) {
+        if (marketCache.has(marketAddress)) {
+          return marketCache.get(marketAddress);
         }
-      });
+        
+        try {
+          const marketUrl = `https://gamma-api.polymarket.com/markets/${marketAddress}`;
+          const response = await fetch(marketUrl);
+          const market = await response.json();
+          
+          const info = {
+            question: market.question || 'Unknown market',
+            slug: market.slug || '',
+            eventSlug: market.eventSlug || '',
+            endDate: market.endDate || null
+          };
+          
+          // Extract city from question
+          const cityMatch = info.question.match(/temperature in ([A-Za-z\s]+)/i);
+          info.city = cityMatch ? cityMatch[1].trim() : 'Unknown';
+          
+          // Extract event date from endDate 
+          if (info.endDate) {
+            const date = new Date(info.endDate);
+            info.event_date = date.toISOString().split('T')[0];
+          }
+          
+          marketCache.set(marketAddress, info);
+          return info;
+        } catch (err) {
+          console.error('Failed to fetch market info for', marketAddress, err.message);
+          const fallback = {
+            question: 'Unknown market',
+            city: 'Unknown', 
+            event_date: null,
+            slug: '',
+            eventSlug: ''
+          };
+          marketCache.set(marketAddress, fallback);
+          return fallback;
+        }
+      }
       
       // Process live orders to separate positions from pending orders
       const positions = [];
@@ -252,41 +289,36 @@ export function mountRoutes(app) {
         const originalSize = parseFloat(order.original_size || 0);
         const pendingSize = originalSize - sizeMatched;
         
-        const dbTrade = dbTradeMap.get(order.id);
+        // Get market info directly from Polymarket
+        const marketInfo = await getMarketInfo(order.market);
+        
+        const baseOrderData = {
+          id: order.id,
+          city: marketInfo.city,
+          side: order.outcome === 'Yes' ? 'YES' : 'NO', 
+          question: marketInfo.question,
+          market_url: marketInfo.eventSlug ? `https://polymarket.com/event/${marketInfo.eventSlug}` : null,
+          event_date: marketInfo.event_date,
+          entry_price: parseFloat(order.price),
+          created_at: order.created_at ? new Date(order.created_at * 1000).toISOString() : null,
+          isLive: true
+        };
         
         // If there are filled shares, it's a position
         if (sizeMatched > 0) {
           positions.push({
-            id: order.id,
-            city: dbTrade?.city || 'Unknown',
-            side: order.outcome === 'Yes' ? 'YES' : 'NO',
-            question: dbTrade?.question || 'Unknown market',
-            market_url: dbTrade?.market_url || null,
-            event_date: dbTrade?.event_date || null,
-            entry_price: parseFloat(order.price),
+            ...baseOrderData,
             actualPosition: sizeMatched,
-            value: sizeMatched * parseFloat(order.price),
-            dbStatus: dbTrade?.status || 'Unknown',
-            created_at: dbTrade?.created_at || null,
-            isLive: true
+            value: sizeMatched * parseFloat(order.price)
           });
         }
         
-        // If there's pending size, it's a pending order
+        // If there's pending size, it's a pending order  
         if (pendingSize > 0.01) { // Small threshold to avoid floating point issues
           pendingOrders.push({
-            id: order.id,
-            city: dbTrade?.city || 'Unknown',
-            side: order.outcome === 'Yes' ? 'YES' : 'NO',
-            question: dbTrade?.question || 'Unknown market',
-            market_url: dbTrade?.market_url || null,
-            event_date: dbTrade?.event_date || null,
-            entry_price: parseFloat(order.price),
+            ...baseOrderData,
             pendingSize: pendingSize,
-            value: pendingSize * parseFloat(order.price),
-            dbStatus: dbTrade?.status || 'Unknown',
-            created_at: dbTrade?.created_at || null,
-            isLive: true
+            value: pendingSize * parseFloat(order.price)
           });
         }
       }

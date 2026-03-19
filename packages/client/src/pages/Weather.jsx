@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { killWeather, setWeatherMode, startWeatherTrading, stopWeatherTrading, triggerWeatherTick } from '../api/weather.js';
+import { killWeather, setWeatherMode, startWeatherTrading, stopWeatherTrading, syncDatabase, triggerWeatherTick } from '../api/weather.js';
 import StatCard from '../components/StatCard.jsx';
 import useApi from '../hooks/useApi.js';
 
@@ -66,6 +66,7 @@ export default function Weather() {
   const { data: status, refetch: refetchStatus } = useApi('/api/weather/status');
   const { data: trades, refetch: refetchTrades } = useApi('/api/weather/trades');
   const { data: openOrders, refetch: refetchOpenOrders } = useApi('/api/weather/open-orders');
+  const { data: liveData, refetch: refetchLiveData } = useApi('/api/weather/live-positions');
   const { data: summary, refetch: refetchSummary } = useApi('/api/weather/summary');
 
   const [cityFilter, setCityFilter] = useState('ALL');
@@ -74,7 +75,7 @@ export default function Weather() {
   const [showLiveConfirm, setShowLiveConfirm] = useState(false);
 
   async function refreshAll() {
-    await Promise.all([refetchStatus(), refetchTrades(), refetchOpenOrders(), refetchSummary()]);
+    await Promise.all([refetchStatus(), refetchTrades(), refetchOpenOrders(), refetchLiveData(), refetchSummary()]);
   }
 
   async function changeMode(newMode) {
@@ -112,19 +113,28 @@ export default function Weather() {
     await refreshAll();
   }
 
+  async function handleSync() {
+    await syncDatabase();
+    await refreshAll();
+  }
+
   const rolling = summary?.rolling || {};
   const cityRows = normalizeCityRows(rolling.byCity);
 
   const openPositions = useMemo(() => {
+    // Use live Polymarket data if available, otherwise fallback to database
+    if (liveData?.positions) {
+      return liveData.positions;
+    }
+    
+    // Fallback to old logic for database-only display
     return (trades || [])
       .filter((trade) => {
-        // Only show truly ACTIVE positions - those still pending resolution
         const position = Number(trade.actualPosition || 0);
         const status = String(trade.status || '').toUpperCase();
         const eventDate = trade.event_date;
         const today = new Date().toISOString().slice(0, 10);
         
-        // Must have position and be in OPEN status and event date hasn't passed
         return position > 0 && 
                status === 'OPEN' && 
                eventDate && 
@@ -133,11 +143,17 @@ export default function Weather() {
       .sort((a, b) => {
         const dateA = a.event_date || a.created_at || '';
         const dateB = b.event_date || b.created_at || '';
-        return dateA.localeCompare(dateB); // Sort by event date (soonest first)
+        return dateA.localeCompare(dateB);
       });
-  }, [trades]);
+  }, [liveData?.positions, trades]);
 
   const pendingOrders = useMemo(() => {
+    // Use live Polymarket data if available, otherwise fallback to database  
+    if (liveData?.pendingOrders) {
+      return liveData.pendingOrders;
+    }
+    
+    // Fallback to old logic for database-only display
     return (trades || [])
       .filter((trade) => String(trade.status || '').toUpperCase() === 'OPEN' && Number(trade.pendingOrderSize || 0) > 0 && trade.orderStillActive)
       .sort((a, b) => {
@@ -145,7 +161,7 @@ export default function Weather() {
         const dateB = b.event_date || b.created_at || '';
         return dateB.localeCompare(dateA);
       });
-  }, [trades]);
+  }, [liveData?.pendingOrders, trades]);
 
   const resolvedTrades = useMemo(() => {
     return (trades || [])
@@ -267,6 +283,15 @@ export default function Weather() {
                 className="rounded-lg bg-slate-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-600"
               >
                 Run Tick
+              </button>
+              
+              {/* Sync Database */}
+              <button
+                type="button"
+                onClick={handleSync}
+                className="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-600"
+              >
+                Sync DB
               </button>
             </div>
           </section>

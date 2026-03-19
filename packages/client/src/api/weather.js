@@ -36,6 +36,10 @@ export function killWeather() {
   return request('/api/weather/kill', { method: 'POST' });
 }
 
+export function syncDatabase() {
+  return request('/api/weather/sync-database', { method: 'POST' });
+}
+
 export function setWeatherMode(mode) {
   return request('/api/weather/mode', {
     method: 'POST',

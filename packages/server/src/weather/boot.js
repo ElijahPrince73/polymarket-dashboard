@@ -178,6 +178,134 @@ export function mountRoutes(app) {
     res.json(enrichTradesWithOpenOrders(trades, openOrders));
   });
 
+  router.post("/sync-database", async (_req, res) => {
+    try {
+      // Get live orders and database trades
+      const [liveOrders, dbTrades] = await Promise.all([getOpenOrders(), db.getAllTrades()]);
+      
+      const dbTradeMap = new Map();
+      dbTrades.forEach(trade => {
+        if (trade.order_id) {
+          dbTradeMap.set(trade.order_id, trade);
+        }
+      });
+      
+      let synced = 0;
+      let errors = [];
+      
+      for (const order of liveOrders) {
+        const dbTrade = dbTradeMap.get(order.id);
+        if (!dbTrade) continue; // Skip orders not in our database
+        
+        const liveSize = parseFloat(order.size_matched || 0);
+        const dbSize = parseFloat(dbTrade.fill_size || 0);
+        const liveStatus = (liveSize > 0 && parseFloat(order.original_size || 0) - liveSize < 0.01) ? 'FILLED' : 'OPEN';
+        
+        // Update if size_matched or status differs
+        if (Math.abs(liveSize - dbSize) > 0.001 || dbTrade.status !== liveStatus) {
+          try {
+            await db.updateTrade(order.id, {
+              fill_size: liveSize,
+              status: liveStatus,
+              actual_position: liveSize,
+              synced_at: new Date().toISOString()
+            });
+            synced += 1;
+          } catch (err) {
+            errors.push(`${order.id}: ${err.message}`);
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        synced,
+        totalLiveOrders: liveOrders.length,
+        totalDbTrades: dbTrades.length,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      res.status(500).json({ error: error?.message || "Failed to sync database" });
+    }
+  });
+
+  router.get("/live-positions", async (_req, res) => {
+    try {
+      // Get actual positions and orders from Polymarket
+      const liveOrders = await getOpenOrders();
+      const [dbTrades] = await Promise.all([db.getAllTrades()]);
+      
+      // Create maps for quick lookup
+      const dbTradeMap = new Map();
+      dbTrades.forEach(trade => {
+        if (trade.order_id) {
+          dbTradeMap.set(trade.order_id, trade);
+        }
+      });
+      
+      // Process live orders to separate positions from pending orders
+      const positions = [];
+      const pendingOrders = [];
+      
+      for (const order of liveOrders) {
+        const sizeMatched = parseFloat(order.size_matched || 0);
+        const originalSize = parseFloat(order.original_size || 0);
+        const pendingSize = originalSize - sizeMatched;
+        
+        const dbTrade = dbTradeMap.get(order.id);
+        
+        // If there are filled shares, it's a position
+        if (sizeMatched > 0) {
+          positions.push({
+            id: order.id,
+            city: dbTrade?.city || 'Unknown',
+            side: order.outcome === 'Yes' ? 'YES' : 'NO',
+            question: dbTrade?.question || 'Unknown market',
+            market_url: dbTrade?.market_url || null,
+            event_date: dbTrade?.event_date || null,
+            entry_price: parseFloat(order.price),
+            actualPosition: sizeMatched,
+            value: sizeMatched * parseFloat(order.price),
+            dbStatus: dbTrade?.status || 'Unknown',
+            created_at: dbTrade?.created_at || null,
+            isLive: true
+          });
+        }
+        
+        // If there's pending size, it's a pending order
+        if (pendingSize > 0.01) { // Small threshold to avoid floating point issues
+          pendingOrders.push({
+            id: order.id,
+            city: dbTrade?.city || 'Unknown',
+            side: order.outcome === 'Yes' ? 'YES' : 'NO',
+            question: dbTrade?.question || 'Unknown market',
+            market_url: dbTrade?.market_url || null,
+            event_date: dbTrade?.event_date || null,
+            entry_price: parseFloat(order.price),
+            pendingSize: pendingSize,
+            value: pendingSize * parseFloat(order.price),
+            dbStatus: dbTrade?.status || 'Unknown',
+            created_at: dbTrade?.created_at || null,
+            isLive: true
+          });
+        }
+      }
+      
+      res.json({
+        positions: positions.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')),
+        pendingOrders: pendingOrders.sort((a, b) => (a.event_date || '').localeCompare(b.event_date || '')),
+        summary: {
+          totalPositions: positions.length,
+          totalValue: positions.reduce((sum, p) => sum + p.value, 0),
+          totalPendingOrders: pendingOrders.length,
+          totalPendingValue: pendingOrders.reduce((sum, p) => sum + p.value, 0)
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: error?.message || "Failed to get live positions" });
+    }
+  });
+
   router.get("/open-orders", async (_req, res) => {
     res.json(await getOpenOrders());
   });

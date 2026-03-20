@@ -73,7 +73,7 @@ export const CONFIG = {
   // Paper trading settings
   paperTrading: {
     enabled:
-      (process.env.PAPER_TRADING_ENABLED || 'true').toLowerCase() === 'true',
+      (process.env.PAPER_TRADING_ENABLED || 'false').toLowerCase() === 'true',
 
     // Bankroll + position sizing
     startingBalance: Number(process.env.STARTING_BALANCE) || 1000,
@@ -474,7 +474,7 @@ export const CONFIG = {
   // Live trading settings (Polymarket CLOB)
   liveTrading: {
     enabled:
-      (process.env.LIVE_TRADING_ENABLED || 'false').toLowerCase() === 'true',
+      (process.env.LIVE_TRADING_ENABLED || 'true').toLowerCase() === 'true',
 
     // Environment gate: if set, LIVE_ENV_GATE must match this value to allow live trading.
     // This prevents accidental live trading in development.

@@ -88,7 +88,7 @@ export async function forecastHourlyBlended(lat, lon, tz, models, targetDate = n
   const modelCalls = selectedModels.map(async (model) => {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-      `&hourly=temperature_2m&timezone=${encodeURIComponent(tz)}&models=${encodeURIComponent(model)}&forecast_days=3`;
+      `&hourly=temperature_2m&timezone=${encodeURIComponent(tz)}&models=${encodeURIComponent(model)}&forecast_days=2`;
     const data = await fetchJson(url);
     const day = dayTempsFromHourly(data?.hourly, dateStr);
     if (!day) {

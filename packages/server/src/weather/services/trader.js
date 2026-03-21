@@ -37,6 +37,12 @@ import {
   probTempEquals,
 } from "../utils.js";
 
+function nextDay(dateStr) {
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function parseJsonArray(s) {
   try {
     return JSON.parse(s || "[]");
@@ -130,6 +136,7 @@ export async function runTradeDiscovery(dbApi = db) {
   const logs = [];
   for (const city of CITIES) {
     const localDate = fmtDateInTz(city.tz);
+    const tomorrowDate = nextDay(localDate);
     const [daily, blendedTemps] = await Promise.all([
       forecastDaily(city.lat, city.lon, city.tz),
       forecastHourlyBlended(city.lat, city.lon, city.tz, MODEL_CANDIDATES[city.name] ?? []),
@@ -307,6 +314,10 @@ export async function runTradeDiscovery(dbApi = db) {
           console.log(`[TRADER] Reducing ${city.name} position by ${((1-cityFilters.sizingMultiplier)*100).toFixed(0)}% due to poor performance`);
         }
         const candidateDate = dateStr || localDate;
+        if (candidateDate > tomorrowDate) {
+          console.log(`[TRADER] Skipping ${city.name} market for ${candidateDate} — beyond tomorrow (${tomorrowDate})`);
+          continue;
+        }
         const cityDateKey = `${city.name}|${candidateDate}`;
         const dailyCap = bankroll * MAX_DAILY_EXPOSURE_PCT;
         const cityCap = bankroll * MAX_CITY_EXPOSURE_PCT;

@@ -1,4 +1,135 @@
-# BTC 5-Minute Trader — Changelog
+# Polymarket Dashboard — Changelog
+
+## WEATHER TRADING
+
+## 2026-03-20 — Weather v1.2: City Detail Pages + Live Position Fix
+
+### City Detail Pages (`/weather/{city}`)
+- **Clickable city navigation** throughout weather dashboard
+- **Dedicated city pages** with comprehensive analytics:
+  - City-specific performance stats (trades, WR, P&L, ROI, avg stake)
+  - Live orders section for that city
+  - Detailed trade history (winning vs losing trades)
+  - Back navigation to main weather overview
+- **Enhanced UX** with hover effects and intuitive linking
+- **Deep dive analysis** to identify why certain cities perform better
+
+### Live Position Data Overhaul
+- **Hybrid API approach** combining Polymarket live data + database enrichment
+- **Fixed position sync issues** - dashboard now shows all live orders from Polymarket
+- **Eliminated "Unknown" fallbacks** for most positions by using database city/question data
+- **Complete coverage** - shows every live order regardless of database status
+- **13+ live orders displayed** instead of just 3 filled positions
+
+### Database Independence Attempt
+- Tried to eliminate database dependency entirely
+- Found Polymarket market API limitations with order.market addresses
+- Settled on hybrid: live orders from Polymarket + enriched details from database
+- Added fallback handling for new orders not yet in database
+
+### Technical Improvements  
+- `/api/weather/live-positions` endpoint for real-time position data
+- `/api/weather/sync-database` endpoint to reconcile database with live orders
+- Frontend combining logic for positions + pending orders
+- React Router city detail pages with parameter handling
+
+---
+
+## 2026-03-18 — Weather v1.1: High-Confidence Strategy
+
+### Performance Tuning (Post-46 Trade Analysis)
+- **46 total trades:** 25W/21L (54.3% WR), -$35.30 (-9.5% ROI)
+- **City-specific performance** varies dramatically:
+  - **Best:** Madrid (72% ROI), Miami (73% ROI), Chicago (59% ROI)
+  - **Worst:** Wellington (-100%), Toronto (-100%), Singapore (-100%)
+
+### High-Confidence Improvements
+- **Raised edge requirements:** MIN_EDGE 15% → 25%, MIN_ABS_MODEL_DIFF 8% → 12%
+- **Added model consensus requirement:** MIN_MODEL_CONSENSUS = 4 (need 4+ weather models agreeing)
+- **City-specific confidence thresholds:**
+  - TIER 1 (proven): Miami, Paris, London, Chicago, Dallas - 25% edge minimum
+  - TIER 2 (marginal): Atlanta, NYC, Sao Paulo - 28% edge minimum  
+  - TIER 3 (poor): Seoul, Wellington, Seattle - 35% edge minimum
+  - TIER 4 (terrible): Toronto, Tokyo, Singapore - 40% edge minimum
+
+### Strategy Philosophy
+- **Extreme selectivity** until model proves itself consistently
+- **Tiered risk controls** based on historical city performance
+- **Access all cities** but with appropriate confidence barriers
+- **Quality over quantity** - better to miss trades than take bad ones
+
+### Expected Impact
+- Win rate 46% → 60-65% through increased selectivity
+- Turn negative ROI positive by avoiding low-conviction trades
+- Maintain coverage across all cities with appropriate risk controls
+
+---
+
+## 2026-03-15 — Weather v1.0: Initial Launch
+
+### Core Trading Engine
+- **12 cities:** London, Dallas, Atlanta, NYC, Seoul, Chicago, Miami, Houston, Phoenix, Denver, LA, SF
+- **Multi-model weather forecasting:** HRRR, NAM, ECMWF, GFS median blending
+- **Normal CDF probability calculation** with EWMA calibration
+- **Half-Kelly position sizing:** 1-8% of bankroll based on edge
+- **$100 paper bankroll** for initial testing and model validation
+
+### Risk Management
+- **Daily exposure limit:** 15% of bankroll
+- **Per-city exposure limit:** 6% of bankroll  
+- **Daily drawdown stop:** 5%
+- **Stop-loss:** 20% of position
+- **Position switching:** Automatic reversal when edge flips >5%
+
+### Data Infrastructure  
+- **Supabase backend:** weather_trades + weather_calibration tables
+- **30-minute tick cycle:** discover → monitor → resolve → report
+- **Unified dashboard:** Express + React with real-time updates
+- **Migration from SQLite** to cloud database for reliability
+
+### Known Issues
+- Model accuracy still being validated over time
+- City-specific performance highly variable  
+- Need more data to optimize confidence thresholds
+- Position switching limited to same market (YES ↔ NO)
+
+---
+
+## BTC TRADING
+
+## 2026-03-20 — v2.2: Live Trading Reliability Overhaul
+
+### Critical Fixes — Exit Flow
+- **Signal-based position marking** (`c27b813`) — LiveExecutor `markPositions` now uses real-time signal prices (`polyPricesCents.UP/DOWN` + `orderbook.bestBid`) instead of per-token CLOB orderbook fetches. The old approach returned null marks for expired/illiquid tokens → exit evaluator never triggered TP/SL → trades rode to settlement unmanaged.
+- **Exit spam guard reduced** (`8fab12e`) — 30s → 5s cooldown between exit attempts. In 5-minute markets, 30s is an eternity. If the first SELL attempt failed, the bot couldn't retry before settlement.
+
+### Critical Fixes — Entry Flow
+- **FOK orders** (`7b813e8`) — Switched from GTC (Good-Til-Cancelled) to FOK (Fill-Or-Kill) for both entries and exits. GTC limit orders would sit on the book unfilled while the bot thought it was in a trade.
+- **Fill verification** (`0d59050`) — After posting a FOK order, bot now waits up to 6s (1s + 2s + 3s retries) to confirm the position appears in CLOB `getTrades()`. Only creates structured trade record after fill is verified. Prevents phantom trades from unfilled orders.
+
+### Critical Fixes — Auto-Heal
+- **Auto-heal before position check** (`8e5e004`) — Moved settlement check to run BEFORE CLOB position matching, not inside the `else` branch. Settled trades now get healed immediately regardless of CLOB state.
+- **Outcome-aware auto-heal** (`2d769b9`) — When auto-heal fires (market settled + 1 min), it now fetches the actual outcome from Polymarket gamma API. Calculates real PnL: Win = `shares × (1 - entry)`, Loss = `-contractSize`. No more $0 PnL auto-heals.
+
+### Configuration
+- **Paper trading disabled** (`5bd580a`) — Default flipped from paper to live. `PAPER_TRADING_ENABLED` defaults to `false`, `LIVE_TRADING_ENABLED` defaults to `true`. Environment vars can still override.
+- **Version in health endpoint** (`cfd092c`) — `/api/health` now returns a `version` field for deploy verification.
+
+### Data Cleanup
+- Deleted 50+ phantom trades from Supabase (accumulated from unfilled GTC orders and $0 auto-heals)
+- Backfilled 35 real live trades from CLOB history with correct outcomes and PnL
+- Real live stats: 35 trades | 15W / 20L | 42.9% WR | -$2.02 PnL
+
+### Root Cause Summary
+The bot was placing limit orders (GTC), assuming they filled, creating trade records, then failing to exit because:
+1. Mark prices came from per-token orderbook (returned null for illiquid/expired tokens)
+2. No mark → no PnL → exit evaluator never triggered
+3. Exit cooldown was 30s → couldn't retry before settlement
+4. Auto-heal closed at $0 instead of determining actual outcome
+
+Now: FOK entry → verify fill → signal-based PnL tracking → 5s exit retries → outcome-aware auto-heal as safety net.
+
+## 2026-03-10 — v2.1: Data-Driven Trading Controls
 
 ## 2026-03-10 — v2.1: Data-Driven Trading Controls
 

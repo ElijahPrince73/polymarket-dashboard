@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { killWeather, setWeatherMode, startWeatherTrading, stopWeatherTrading, syncDatabase, triggerWeatherTick } from '../api/weather.js';
 import StatCard from '../components/StatCard.jsx';
 import useApi from '../hooks/useApi.js';
@@ -341,7 +342,14 @@ export default function Weather() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-slate-200">
-                      {formatShareCount(trade.shares || trade.actualPosition)} {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                      {formatShareCount(trade.shares || trade.actualPosition)}{' '}
+                      <Link 
+                        to={`/weather/${encodeURIComponent(trade.city || 'Unknown')}`}
+                        className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        {String(trade.city || 'Unknown')}
+                      </Link>{' '}
+                      {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
                       {trade.type && (
                         <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
                           trade.type === 'filled' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'
@@ -382,7 +390,14 @@ export default function Weather() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-slate-200">
-                      {formatShareCount(trade.pendingOrderSize)} pending {String(trade.city || 'Unknown')} {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                      {formatShareCount(trade.pendingOrderSize)} pending{' '}
+                      <Link 
+                        to={`/weather/${encodeURIComponent(trade.city || 'Unknown')}`}
+                        className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        {String(trade.city || 'Unknown')}
+                      </Link>{' '}
+                      {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
                     </p>
                     <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
                   </div>
@@ -441,7 +456,12 @@ export default function Weather() {
                 >
                   {/* City header row */}
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-slate-200">{row.city}</h3>
+                    <Link 
+                      to={`/weather/${encodeURIComponent(row.city)}`}
+                      className="text-sm font-semibold text-slate-200 hover:text-emerald-400 transition-colors"
+                    >
+                      {row.city}
+                    </Link>
                     <div className="flex items-center gap-3 text-xs">
                       {cityOpen.length > 0 && (
                         <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-400">

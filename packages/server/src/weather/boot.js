@@ -189,12 +189,19 @@ export function mountRoutes(app) {
           dbTradeMap.set(trade.order_id, trade);
         }
       });
+
+      const conditionIdMap = new Map();
+      dbTrades.forEach(trade => {
+        if (trade.condition_id) {
+          conditionIdMap.set(trade.condition_id, trade);
+        }
+      });
       
       let synced = 0;
       let errors = [];
       
       for (const order of liveOrders) {
-        const dbTrade = dbTradeMap.get(order.id);
+        const dbTrade = dbTradeMap.get(order.id) || conditionIdMap.get(order.market);
         if (!dbTrade) continue; // Skip orders not in our database
         
         const liveSize = parseFloat(order.size_matched || 0);

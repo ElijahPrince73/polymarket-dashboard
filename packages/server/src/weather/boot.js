@@ -248,6 +248,13 @@ export function mountRoutes(app) {
           dbTradeMap.set(trade.order_id, trade);
         }
       });
+
+      const conditionIdMap = new Map();
+      dbTrades.forEach(trade => {
+        if (trade.condition_id) {
+          conditionIdMap.set(trade.condition_id, trade);
+        }
+      });
       
       // Process live orders to separate positions from pending orders
       const positions = [];
@@ -259,7 +266,7 @@ export function mountRoutes(app) {
         const pendingSize = originalSize - sizeMatched;
         
         // Get enriched info from database if available, otherwise use live data
-        const dbTrade = dbTradeMap.get(order.id);
+        const dbTrade = dbTradeMap.get(order.id) || conditionIdMap.get(order.market);
         
         const baseOrderData = {
           id: order.id,

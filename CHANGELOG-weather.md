@@ -1,76 +1,114 @@
-# Weather Bot Changelog
+# Weather Trading — Changelog
 
-## 2026-03-15 — v4: UI/UX Improvements + Data Accuracy
+## 2026-03-20 — Weather v1.2: City Detail Pages + Live Position Fix
 
-### Trading Mode Separation
-- **Fixed mode toggle** — paper/live switch now actually changes trading behavior at runtime
-- Added `trading_mode` column to database — paper and live trades fully separated
-- Clean slate when switching modes — no more paper data bleeding into live view
+### City Detail Pages (`/weather/{city}`)
+- **Clickable city navigation** throughout weather dashboard
+- **Dedicated city pages** with comprehensive analytics:
+  - City-specific performance stats (trades, WR, P&L, ROI, avg stake)
+  - Live orders section for that city
+  - Detailed trade history (winning vs losing trades)
+  - Back navigation to main weather overview
+- **Enhanced UX** with hover effects and intuitive linking
+- **Deep dive analysis** to identify why certain cities perform better
 
-### Position vs Order Clarity  
-- **Replaced confusing "3/5" displays** with clear "Open Positions" and "Pending Orders" sections
-- **Open Positions:** Actual shares owned (real market exposure)
-- **Pending Orders:** Orders sitting on book (just reserving collateral)
-- Fixed data sync issue — now uses live Polymarket order data as truth instead of stale database values
+### Live Position Data Overhaul
+- **Hybrid API approach** combining Polymarket live data + database enrichment
+- **Fixed position sync issues** - dashboard now shows all live orders from Polymarket
+- **Eliminated "Unknown" fallbacks** for most positions by using database city/question data
+- **Complete coverage** - shows every live order regardless of database status
+- **13+ live orders displayed** instead of just 3 filled positions
 
-### UI Improvements
-- Removed useless uPnL display (was always $0.00)
-- Clean position cards: shares, city, side, price, date
-- Separate stat cards for positions vs pending orders
-- Much clearer understanding of actual vs potential exposure
+### Database Independence Attempt
+- Tried to eliminate database dependency entirely
+- Found Polymarket market API limitations with order.market addresses
+- Settled on hybrid: live orders from Polymarket + enriched details from database
+- Added fallback handling for new orders not yet in database
 
-### Technical Changes
-- Added `/api/weather/open-orders` endpoint for live order status
-- Enhanced `/api/weather/trades` with computed `actualPosition`, `pendingOrderSize`, `orderStillActive` fields
-- `enrichTradesWithOpenOrders()` function cross-references database with live CLOB data
-- Uses `size_matched` from live orders instead of database `fill_size`
+### Technical Improvements  
+- `/api/weather/live-positions` endpoint for real-time position data
+- `/api/weather/sync-database` endpoint to reconcile database with live orders
+- Frontend combining logic for positions + pending orders
+- React Router city detail pages with parameter handling
 
-## 2026-03-06 — v3: YES-First Strategy
+---
 
-### Problem with v2
-- 15 trades: 7W/8L, -$12.81, 47% WR
-- 20%+ edge bucket: 60% WR, -7% ROI (close to breakeven)
-- 10-20% edge bucket: 20% WR, -50% ROI (disaster)
-- Still mostly betting NO on off-center buckets — bad payoff asymmetry
+## 2026-03-18 — Weather v1.1: High-Confidence Strategy
 
-### Fix: Flip to YES-First
-- **Core change:** Find the bucket that CONTAINS the forecast temperature, buy YES if underpriced
-- Payoff comparison: YES at $0.15 → $1.00 = 567% return vs NO at $0.60 → $1.00 = 67%
-- Forecast bucket detection uses ±1.5°C containment, not highest model probability
-- NO bets only for extreme mispricings (>25% edge on far-from-forecast buckets)
-- MIN_EDGE: 8% → 15% (kills the bad 10-20% edge trades)
-- Tick interval: 30min → 10min (catch opportunities faster)
-- Data wiped for clean start
+### Performance Tuning (Post-46 Trade Analysis)
+- **46 total trades:** 25W/21L (54.3% WR), -$35.30 (-9.5% ROI)
+- **City-specific performance** varies dramatically:
+  - **Best:** Madrid (72% ROI), Miami (73% ROI), Chicago (59% ROI)
+  - **Worst:** Wellington (-100%), Toronto (-100%), Singapore (-100%)
 
-## 2026-03-04 — Model Rebuild (v2.0)
+### High-Confidence Improvements
+- **Raised edge requirements:** MIN_EDGE 15% → 25%, MIN_ABS_MODEL_DIFF 8% → 12%
+- **Added model consensus requirement:** MIN_MODEL_CONSENSUS = 4 (need 4+ weather models agreeing)
+- **City-specific confidence thresholds:**
+  - TIER 1 (proven): Miami, Paris, London, Chicago, Dallas - 25% edge minimum
+  - TIER 2 (marginal): Atlanta, NYC, Sao Paulo - 28% edge minimum  
+  - TIER 3 (poor): Seoul, Wellington, Seattle - 35% edge minimum
+  - TIER 4 (terrible): Toronto, Tokyo, Singapore - 40% edge minimum
 
-### Problem
-- 22 trades: 11W/11L (50% WR), -$25.42 PnL, -18.7% ROI
-- Model was claiming 20-40% edge on every trade — all phantom
-- Root cause: computing bucket probabilities independently with continuous CDF
-- F-range buckets (80-81°F = 0.56°C wide) got near-zero prob, creating fake NO edge
-- sigma=1.5 was too tight — model overconfident in forecast precision
+### Strategy Philosophy
+- **Extreme selectivity** until model proves itself consistently
+- **Tiered risk controls** based on historical city performance
+- **Access all cities** but with appropriate confidence barriers
+- **Quality over quantity** - better to miss trades than take bad ones
 
-### Fix: Multinomial Bucket Normalization
-- **New approach:** compute CDF probability for ALL buckets in an event, then normalize so they sum to 1
-- This gives proper multinomial distribution across market buckets
-- sigma: 1.5 → 3.0 (matches real forecast error)
-- MIN_BUCKET_PROB: 5% floor (no bucket below 5%)
-- MIN_EDGE: 3% → 8% (only trade with real conviction)
-- Kelly max: 8% → 4% (smaller positions)
-- Multi-model blending: now fetches 3-day forecast (works for tomorrow's markets)
-- Data reset: clean slate
+### Expected Impact
+- Win rate 46% → 60-65% through increased selectivity
+- Turn negative ROI positive by avoiding low-conviction trades
+- Maintain coverage across all cities with appropriate risk controls
 
-### Also Fixed
-- Resolver: neg-risk grouped events now resolve properly (outcome prices >= 0.95 as signal)
+---
 
-## 2026-02-28 — Live CLOB Integration
-- Added @polymarket/clob-client for real order placement
-- Paper/Live mode toggle, kill switch
-- Same wallet as BTC bot
+## 2026-03-15 — Weather v1.0: Initial Launch
 
-## 2026-02-27 — Initial Build
-- Full rewrite from Python+Notion to Node ESM
-- SQLite → later migrated to Supabase
-- 12 cities, multi-model blending, Kelly sizing
-- Express dashboard with dark theme
+### Core Trading Engine
+- **12 cities:** London, Dallas, Atlanta, NYC, Seoul, Chicago, Miami, Houston, Phoenix, Denver, LA, SF
+- **Multi-model weather forecasting:** HRRR, NAM, ECMWF, GFS median blending
+- **Normal CDF probability calculation** with EWMA calibration
+- **Half-Kelly position sizing:** 1-8% of bankroll based on edge
+- **$100 paper bankroll** for initial testing and model validation
+
+### Risk Management
+- **Daily exposure limit:** 15% of bankroll
+- **Per-city exposure limit:** 6% of bankroll  
+- **Daily drawdown stop:** 5%
+- **Stop-loss:** 20% of position
+- **Position switching:** Automatic reversal when edge flips >5%
+
+### Data Infrastructure  
+- **Supabase backend:** weather_trades + weather_calibration tables
+- **30-minute tick cycle:** discover → monitor → resolve → report
+- **Unified dashboard:** Express + React with real-time updates
+- **Migration from SQLite** to cloud database for reliability
+
+### Known Issues
+- Model accuracy still being validated over time
+- City-specific performance highly variable  
+- Need more data to optimize confidence thresholds
+- Position switching limited to same market (YES ↔ NO)
+
+---
+
+## Key Lessons Learned
+
+### Technical Architecture
+- **Hybrid APIs work better than pure approaches** - live data + enriched metadata
+- **Database dependency challenging to eliminate** due to Polymarket API limitations
+- **UI should match user mental model** - Polymarket shows all live orders as "positions"
+- **City-level analytics enable better decision making** - can identify failure patterns
+
+### Trading Strategy
+- **City performance varies dramatically** - tiered approach better than blacklisting
+- **Model consensus requirements** prevent low-confidence trades
+- **Extreme selectivity improves win rate** - quality over quantity
+- **Position switching works** but limited to same market (could enhance for cross-market)
+
+### Data & Sync Issues
+- **Database sync critical** - live orders must match database state
+- **Live position display complex** - need to reconcile multiple data sources
+- **Order status tracking** - pending vs filled vs resolved states need clear handling
+- **Market resolution timing** - settlement detection requires careful implementation

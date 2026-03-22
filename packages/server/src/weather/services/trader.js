@@ -192,15 +192,51 @@ export async function runTradeDiscovery(dbApi = db) {
       // Compute normalized bucket probabilities across ALL markets in this event
       const bucketProbs = computeEventBucketProbs(tempMarkets, forecastTemp, FORECAST_SIGMA);
 
-      // Find the single bucket with highest model probability (the forecast bucket)
+      // Find the forecast bucket — prefer range buckets that contain the forecast temp
       let bestBucket = null;
       let bestProb = 0;
-      for (const [question, prob] of bucketProbs.entries()) {
-        if (prob > bestProb) {
-          bestProb = prob;
-          bestBucket = question;
+
+      // First pass: look for range buckets only (these are the specific temp windows like "78-79°F")
+      for (const market of tempMarkets) {
+        const q = market.question || "";
+        const range = parseRangeC(q);
+        if (!range) continue; // skip inequality/threshold markets
+        // Check if forecast falls within this range (with 0.5°C buffer)
+        if (forecastTemp >= (range.lowC - 0.5) && forecastTemp <= (range.highC + 0.5)) {
+          const prob = bucketProbs.get(q);
+          if (prob != null && prob > bestProb) {
+            bestProb = prob;
+            bestBucket = q;
+          }
         }
       }
+
+      // Fallback: if no range bucket matched, try threshold (exact temp) markets
+      if (!bestBucket) {
+        for (const market of tempMarkets) {
+          const q = market.question || "";
+          const thr = parseThresholdC(q);
+          if (!thr) continue;
+          if (Math.abs(forecastTemp - thr.valueC) <= 1.0) {
+            const prob = bucketProbs.get(q);
+            if (prob != null && prob > bestProb) {
+              bestProb = prob;
+              bestBucket = q;
+            }
+          }
+        }
+      }
+
+      // Last resort: highest probability from any market type
+      if (!bestBucket) {
+        for (const [question, prob] of bucketProbs.entries()) {
+          if (prob > bestProb) {
+            bestProb = prob;
+            bestBucket = question;
+          }
+        }
+      }
+
       if (!bestBucket) continue;
 
       // Find the market object for the best bucket
@@ -220,6 +256,10 @@ export async function runTradeDiscovery(dbApi = db) {
         try { yesPrice = await clobPrice(tokenIds[yesIdx]); } catch {}
       }
       if (!Number.isFinite(yesPrice) || yesPrice <= 0) continue;
+      if (yesPrice < 0.03) {
+        console.log(`[TRADER] Skipping ${city.name} ${bestBucket}: price too low (${yesPrice})`);
+        continue;
+      }
 
       // Half-Kelly sizing — if negative, Kelly says dont bet
       const sizePct = kellySize(modelProb, yesPrice);
@@ -232,8 +272,8 @@ export async function runTradeDiscovery(dbApi = db) {
       let stakeUsd = bankroll * Math.min(sizePct, 0.08); // cap at 8% of bankroll per trade
 
       const candidateDate = dateStr || localDate;
-      if (candidateDate > tomorrowDate) {
-        console.log(`[TRADER] Skipping ${city.name} market for ${candidateDate} — beyond tomorrow (${tomorrowDate})`);
+      if (candidateDate !== tomorrowDate) {
+        console.log(`[TRADER] Skipping ${city.name} market for ${candidateDate} — not tomorrow (${tomorrowDate})`);
         continue;
       }
       const cityDateKey = `${city.name}|${candidateDate}`;

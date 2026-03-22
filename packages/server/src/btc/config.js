@@ -482,7 +482,7 @@ export const CONFIG = {
 
     // Start small, scale up as strategy proves out in live.
     // Week 1: $3, Week 2: $10, Week 3: $25, Week 4+: full size
-    maxPerTradeUsd: Number(process.env.LIVE_MAX_PER_TRADE_USD) || 3,
+    maxPerTradeUsd: Number(process.env.LIVE_MAX_PER_TRADE_USD) || 10,
     maxOpenExposureUsd: Number(process.env.LIVE_MAX_OPEN_EXPOSURE_USD) || 10,
     // Kill switch: if realized PnL for the day <= -maxDailyLossUsd, stop live trading.
     // Reset mode: "midnight_pt" (default)

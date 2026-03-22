@@ -67,8 +67,11 @@ export async function placeSellOrder(tokenId, price, size) {
     const resp = await client.createAndPostOrder(
       { tokenID: tokenId, price, size, side: "SELL" },
       {},
-      OrderType.GTC
+      OrderType.FOK
     );
+    if (!resp?.orderID) {
+      return { success: false, error: "FOK sell not filled", orderId: null };
+    }
     return { success: true, orderId: resp?.orderID, resp };
   } catch (e) {
     return { success: false, error: e?.message || String(e), orderId: null };

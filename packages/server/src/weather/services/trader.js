@@ -4,15 +4,10 @@ import {
   MODEL_CANDIDATES,
   MAX_CITY_EXPOSURE_PCT,
   MAX_DAILY_EXPOSURE_PCT,
-  MAX_PRICE,
-  MIN_ABS_MODEL_DIFF,
-  MIN_EDGE,
   MIN_HOURS_TO_CLOSE,
   MIN_MODEL_CONSENSUS,
-  MIN_PRICE,
   STOP_DAILY_DD_PCT,
 } from "../config.js";
-import { getCityThresholds, getCityFilters } from "../city-specific-thresholds.js";
 import db from "../db.js";
 import {
   applyCalibration,
@@ -27,14 +22,12 @@ import {
   detectMarketType,
   fmtDateInTz,
   FORECAST_SIGMA,
-  isTemperatureQuestion,
   MIN_BUCKET_PROB,
   normalCdf,
   parseDateFromQuestion,
   parseInequalityC,
   parseRangeC,
   parseThresholdC,
-  probTempEquals,
 } from "../utils.js";
 
 function nextDay(dateStr) {
@@ -51,12 +44,14 @@ function parseJsonArray(s) {
   }
 }
 
-function kellySize(modelProb, entryPrice, side) {
-  const p = side === "YES" ? modelProb : 1 - modelProb;
-  const payoff = 1 / entryPrice - 1;
+function kellySize(modelProb, price) {
+  // p = model probability of YES winning
+  // payoff = (1/price) - 1 (what you gain per dollar risked if you win)
+  // kelly = (p * payoff - (1-p)) / payoff
+  const p = modelProb;
+  const payoff = 1 / price - 1;
   const kelly = (p * payoff - (1 - p)) / payoff;
-  const halfKelly = kelly / 2;
-  return Math.max(0.01, Math.min(0.04, halfKelly));
+  return kelly / 2; // half-Kelly
 }
 
 /**
@@ -195,160 +190,80 @@ export async function runTradeDiscovery(dbApi = db) {
       // Compute normalized bucket probabilities across ALL markets in this event
       const bucketProbs = computeEventBucketProbs(tempMarkets, forecastTemp, FORECAST_SIGMA);
 
-      // Strategy: find the bucket that CONTAINS the forecast temperature and buy YES
-      // if the market underprices it. This gives better payoff asymmetry:
-      // buying YES at $0.15 that resolves to $1.00 = 567% return
-      // vs buying NO at $0.60 that resolves to $1.00 = 67% return
-      //
-      // Also consider adjacent buckets (±1 range from forecast).
-      // Only take NO bets on extreme mispricings (>25% edge).
-
-      // Find which bucket actually contains the forecast temperature
-      const forecastBuckets = new Set();
-      for (const market of tempMarkets) {
-        const q = market.question || "";
-        const range = parseRangeC(q);
-        const ineq = parseInequalityC(q);
-        const thr = parseThresholdC(q);
-        let contains = false;
-        if (range) {
-          // Range: check if forecast falls within lowC..highC (with 1°C buffer for adjacent)
-          contains = forecastTemp >= (range.lowC - 1.5) && forecastTemp <= (range.highC + 1.5);
-        } else if (ineq) {
-          // Inequality: forecast bucket if forecast is near the boundary
-          const dist = Math.abs(forecastTemp - ineq.valueC);
-          contains = dist <= 2.0;
-        } else if (thr) {
-          // Exact temp: forecast bucket if within ±1.5°C
-          contains = Math.abs(forecastTemp - thr.valueC) <= 1.5;
+      // Find the single bucket with highest model probability (the forecast bucket)
+      let bestBucket = null;
+      let bestProb = 0;
+      for (const [question, prob] of bucketProbs.entries()) {
+        if (prob > bestProb) {
+          bestProb = prob;
+          bestBucket = question;
         }
-        if (contains) forecastBuckets.add(q);
       }
-      // If no bucket matched (shouldn't happen), fall back to top 3 by model prob
-      if (forecastBuckets.size === 0) {
-        const sorted = [...bucketProbs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-        for (const [q] of sorted) forecastBuckets.add(q);
+      if (!bestBucket) continue;
+
+      // Find the market object for the best bucket
+      const market = tempMarkets.find((m) => m.question === bestBucket);
+      if (!market) continue;
+
+      const modelProb = applyCalibration(city.name, type, bestProb);
+
+      const outcomes = parseJsonArray(market.outcomes);
+      const tokenIds = parseJsonArray(market.clobTokenIds);
+      const outcomePrices = parseJsonArray(market.outcomePrices);
+      const yesIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "yes");
+      if (yesIdx < 0) continue;
+
+      let yesPrice = Number.parseFloat(outcomePrices[yesIdx]);
+      if (tokenIds[yesIdx]) {
+        try { yesPrice = await clobPrice(tokenIds[yesIdx]); } catch {}
+      }
+      if (!Number.isFinite(yesPrice) || yesPrice <= 0) continue;
+
+      // Half-Kelly sizing — if negative, Kelly says dont bet
+      const sizePct = kellySize(modelProb, yesPrice);
+      if (sizePct <= 0) {
+        console.log(`[TRADER] Skipping ${city.name} ${bestBucket}: Kelly negative (model=${modelProb.toFixed(3)}, price=${yesPrice.toFixed(3)})`);
+        continue;
       }
 
-      for (const market of tempMarkets) {
-        const question = market.question || "";
-        let modelProb = bucketProbs.get(question);
-        if (modelProb == null) continue;
+      const edge = modelProb - yesPrice;
+      let stakeUsd = bankroll * Math.min(sizePct, 0.08); // cap at 8% of bankroll per trade
 
-        modelProb = applyCalibration(city.name, type, modelProb);
-
-        const outcomes = parseJsonArray(market.outcomes);
-        const tokenIds = parseJsonArray(market.clobTokenIds);
-        const outcomePrices = parseJsonArray(market.outcomePrices);
-        const yesIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "yes");
-        const noIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "no");
-        if (yesIdx < 0 || noIdx < 0) continue;
-
-        let yesPrice = Number.parseFloat(outcomePrices[yesIdx]);
-        let noPrice = Number.parseFloat(outcomePrices[noIdx]);
-        if (tokenIds[yesIdx]) {
-          try { yesPrice = await clobPrice(tokenIds[yesIdx]); } catch {}
-        }
-        if (tokenIds[noIdx]) {
-          try { noPrice = await clobPrice(tokenIds[noIdx]); } catch {}
-        }
-        if (!Number.isFinite(yesPrice) || !Number.isFinite(noPrice)) continue;
-
-        const edgeYes = modelProb - yesPrice;
-        const edgeNo = 1 - modelProb - noPrice;
-
-        // Determine side based on strategy:
-        // - For forecast-aligned buckets (top 3): strongly prefer YES
-        // - For other buckets: only take NO if edge is very large (>25%)
-        let side, price, edge, tokenId;
-        const isForecastBucket = forecastBuckets.has(question);
-
-        // Get city-specific thresholds
-        const cityThresholds = getCityThresholds(city.name);
-        const cityFilters = getCityFilters(city.name);
-        
-        // Apply city-specific minimum edge requirement
-        const requiredEdgeYes = Math.max(MIN_EDGE, cityThresholds.minEdge);
-        const requiredEdgeNo = Math.max(0.25, cityThresholds.minEdge + 0.10); // NO trades need higher edge
-        
-        if (isForecastBucket && edgeYes >= requiredEdgeYes) {
-          // Buy YES on forecast-aligned bucket — the core strategy
-          side = "YES";
-          price = yesPrice;
-          edge = edgeYes;
-          tokenId = tokenIds[yesIdx];
-        } else if (!isForecastBucket && edgeNo >= requiredEdgeNo) {
-          // Sell (buy NO) on far-from-forecast buckets only with huge edge
-          side = "NO";
-          price = noPrice;
-          edge = edgeNo;
-          tokenId = tokenIds[noIdx];
-        } else {
-          continue; // Skip — no clear edge
-        }
-
-        const marketProbYes = yesPrice;
-        if (marketProbYes < MIN_PRICE || marketProbYes > cityThresholds.maxPrice) continue;
-        
-        // Apply city-specific model difference requirement
-        const requiredModelDiff = Math.max(MIN_ABS_MODEL_DIFF, cityThresholds.minModelDiff);
-        if (Math.abs(modelProb - marketProbYes) < requiredModelDiff) continue;
-        
-        // City-specific additional filters
-        if (cityFilters.requireMinModels && forecast?.modelsUsed < cityFilters.requireMinModels) {
-          console.log(`[TRADER] Skipping ${city.name}: only ${forecast?.modelsUsed} models, need ${cityFilters.requireMinModels}`);
-          continue;
-        }
-        
-        if (cityFilters.requirePriceDiscrepancy && Math.abs(modelProb - marketProbYes) < cityFilters.requirePriceDiscrepancy) {
-          console.log(`[TRADER] Skipping ${city.name}: price discrepancy ${Math.abs(modelProb - marketProbYes).toFixed(3)} below required ${cityFilters.requirePriceDiscrepancy}`);
-          continue;
-        }
-
-        const sizePct = kellySize(modelProb, price, side);
-        let stakeUsd = bankroll * sizePct;
-        
-        // Apply city-specific position sizing
-        if (cityFilters.sizingMultiplier) {
-          stakeUsd *= cityFilters.sizingMultiplier;
-          console.log(`[TRADER] Reducing ${city.name} position by ${((1-cityFilters.sizingMultiplier)*100).toFixed(0)}% due to poor performance`);
-        }
-        const candidateDate = dateStr || localDate;
-        if (candidateDate > tomorrowDate) {
-          console.log(`[TRADER] Skipping ${city.name} market for ${candidateDate} — beyond tomorrow (${tomorrowDate})`);
-          continue;
-        }
-        const cityDateKey = `${city.name}|${candidateDate}`;
-        const dailyCap = bankroll * MAX_DAILY_EXPOSURE_PCT;
-        const cityCap = bankroll * MAX_CITY_EXPOSURE_PCT;
-        const remainingDaily = Math.max(0, dailyCap - (openStakeToday.get(candidateDate) ?? 0));
-        const remainingCity = Math.max(0, cityCap - (openStakeByCityDate.get(cityDateKey) ?? 0));
-        stakeUsd = Math.max(0, Math.min(stakeUsd, remainingDaily, remainingCity));
-
-        if (stopForDay || stakeUsd <= 0.0001) continue;
-
-        const candidate = {
-          city: city.name,
-          station: city.station,
-          question,
-          market_url: event.slug ? `https://polymarket.com/event/${event.slug}` : null,
-          event_date: candidateDate,
-          side,
-          entry_price: price,
-          model_prob: modelProb,
-          edge,
-          size_pct: sizePct,
-          stake_usd: stakeUsd,
-          status: "OPEN",
-          result: "PENDING",
-          notes: `${blendedNote} | ${isForecastBucket ? "FORECAST_BUCKET" : "FAR_BUCKET"}`,
-          token_id: tokenId ?? null,
-          condition_id: market.conditionId ?? null,
-          neg_risk: market.negRisk ? 1 : 0,
-        };
-        const currentBest = bestByDate.get(candidateDate);
-        if (!currentBest || candidate.edge > currentBest.edge) bestByDate.set(candidateDate, candidate);
+      const candidateDate = dateStr || localDate;
+      if (candidateDate > tomorrowDate) {
+        console.log(`[TRADER] Skipping ${city.name} market for ${candidateDate} — beyond tomorrow (${tomorrowDate})`);
+        continue;
       }
+      const cityDateKey = `${city.name}|${candidateDate}`;
+      const dailyCap = bankroll * MAX_DAILY_EXPOSURE_PCT;
+      const cityCap = bankroll * MAX_CITY_EXPOSURE_PCT;
+      const remainingDaily = Math.max(0, dailyCap - (openStakeToday.get(candidateDate) ?? 0));
+      const remainingCity = Math.max(0, cityCap - (openStakeByCityDate.get(cityDateKey) ?? 0));
+      stakeUsd = Math.max(0, Math.min(stakeUsd, remainingDaily, remainingCity));
+
+      if (stopForDay || stakeUsd <= 0.0001) continue;
+
+      const candidate = {
+        city: city.name,
+        station: city.station,
+        question: bestBucket,
+        market_url: event.slug ? `https://polymarket.com/event/${event.slug}` : null,
+        event_date: candidateDate,
+        side: "YES",
+        entry_price: yesPrice,
+        model_prob: modelProb,
+        edge,
+        size_pct: sizePct,
+        stake_usd: stakeUsd,
+        status: "OPEN",
+        result: "PENDING",
+        notes: `${blendedNote} | FORECAST_BUCKET | Kelly=${sizePct.toFixed(4)}`,
+        token_id: tokenIds[yesIdx] ?? null,
+        condition_id: market.conditionId ?? null,
+        neg_risk: market.negRisk ? 1 : 0,
+      };
+      const currentBest = bestByDate.get(candidateDate);
+      if (!currentBest || candidate.edge > currentBest.edge) bestByDate.set(candidateDate, candidate);
     }
 
     const bestEntries = [...bestByDate.values()];

@@ -355,7 +355,7 @@ export const CONFIG = {
     // If enabled, blocks weekend entries (with optional Sunday exception).
     // Disabled: collecting data on weekend performance for paper trading.
     weekdaysOnly:
-      (process.env.WEEKDAYS_ONLY || 'false').toLowerCase() === 'true',
+      (process.env.WEEKDAYS_ONLY || 'true').toLowerCase() === 'true',
     // Optional exception: allow Sunday entries after this hour (0-23). Set negative/empty to disable.
     // Allow Sunday evening (6 PM PST) when volume picks up before Monday.
     allowSundayAfterHour: Number(process.env.ALLOW_SUNDAY_AFTER_HOUR) || 18,

@@ -60,6 +60,7 @@ import { getWebhookService } from "./infrastructure/webhooks/webhookService.js";
 import { installGracefulShutdown } from "./infrastructure/deployment/gracefulShutdown.js";
 import { checkSettlements, recordPriceSnapshot } from "./services/settlementService.js";
 import { checkAndRedeem } from "./services/redeemService.js";
+import { repairZeroPnlTrades, startRepairInterval } from "./services/tradeRepairService.js";
 
 // Phase 5: Startup validation
 import { logEnvValidation } from "./infrastructure/deployment/envValidation.js";
@@ -403,6 +404,35 @@ export async function startApp({ skipServer = false } = {}) {
   // Start UI server (skip in unified mode — routes are mounted externally)
   if (!skipServer) {
     try { _httpServer = startUIServer(); } catch (err) { console.error('Failed to start UI server:', err); }
+  }
+
+  const waitForTradeStore = async (timeoutMs = 10_000) => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      try {
+        const store = globalThis.__tradeStore_getTradeStore?.();
+        if (store) return store;
+      } catch {
+        // retry until timeout
+      }
+      await sleep(250);
+    }
+    return null;
+  };
+
+  const tradeStore = await waitForTradeStore();
+  if (tradeStore) {
+    try {
+      const repaired = await repairZeroPnlTrades(tradeStore);
+      if (repaired > 0) {
+        console.log(`[TradeRepair] Boot repair completed: ${repaired} trade(s) updated`);
+      }
+    } catch (err) {
+      console.warn('[TradeRepair] Boot repair failed:', err.message);
+    }
+    startRepairInterval(tradeStore);
+  } else {
+    console.warn('[TradeRepair] Trade store not ready on boot, skipping repair service startup');
   }
 
   if (process.env.BTC_VERBOSE) console.log(`--- Bot Started ---`);

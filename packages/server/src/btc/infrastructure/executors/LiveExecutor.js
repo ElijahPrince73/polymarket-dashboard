@@ -760,6 +760,33 @@ export class LiveExecutor extends OrderExecutor {
           console.warn(`[live] Auto-heal outcome fetch failed: ${e?.message}`);
         }
 
+        if (pnl === 0 && exitReason === 'Auto-heal (market settled)') {
+          const btcNow = signals?.spot?.price ?? null;
+          const btcEntry = t.btcSpotAtEntry ?? null;
+
+          if (isNum(btcNow) && isNum(btcEntry)) {
+            const derivedWinner = btcNow > btcEntry ? 'UP' : 'DOWN';
+            const won = derivedWinner === t.side;
+
+            if (won) {
+              pnl = Number((t.shares * (1.0 - t.entryPrice)).toFixed(2));
+              exitReason = 'Market Settlement (Win - price derived)';
+            } else {
+              pnl = Number((-t.contractSize).toFixed(2));
+              exitReason = 'Market Settlement (Loss - price derived)';
+            }
+
+            console.log(
+              `[live] Auto-heal fallback: ${t.side} ${won ? 'WON' : 'LOST'} ` +
+              `(derived: ${derivedWinner}, btcEntry=${btcEntry}, btcNow=${btcNow}) PnL: $${pnl}`
+            );
+          } else {
+            pnl = Number((-t.contractSize).toFixed(2));
+            exitReason = 'Market Settlement (Loss - no price data)';
+            console.warn(`[live] Auto-heal: no price data for ${t.marketSlug}, assuming loss PnL: $${pnl}`);
+          }
+        }
+
         t.exitTime = new Date(settlementMs).toISOString();
         t.status = 'CLOSED';
         t.exitReason = exitReason;

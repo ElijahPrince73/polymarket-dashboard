@@ -196,6 +196,27 @@ export class SupabaseTradeStore {
   }
 
   /**
+   * Get closed auto-healed trades with zero PnL for repair.
+   * @returns {Object[]}
+   */
+  async getZeroPnlAutoHealTrades() {
+    const { data, error } = await this.client
+      .from('trades')
+      .select('*')
+      .eq('status', 'CLOSED')
+      .eq('pnl', 0)
+      .ilike('exitReason', '%auto-heal%')
+      .order('entryTime', { ascending: false });
+
+    if (error) {
+      console.warn(`[SupabaseTradeStore] getZeroPnlAutoHealTrades failed: ${error.message}`);
+      return [];
+    }
+
+    return (data || []).map(r => this._rowToTrade(r));
+  }
+
+  /**
    * Get open trades.
    * @returns {Object[]}
    */

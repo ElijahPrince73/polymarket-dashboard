@@ -208,6 +208,10 @@ export default function Weather() {
   const openOrderCount = Array.isArray(openOrders) ? openOrders.length : 0;
   const totalTrades = Number(rolling.trades || 0);
   const winRate = totalTrades > 0 ? (Number(rolling.wins || 0) / totalTrades) * 100 : 0;
+  const paperTrades = useMemo(() => {
+    if (!trades || isLive) return [];
+    return trades.filter((t) => String(t.status || '').toUpperCase() === 'OPEN');
+  }, [trades, isLive]);
 
   return (
     <div className="space-y-6">
@@ -316,60 +320,114 @@ export default function Weather() {
           value={formatCurrency(realized)}
           color={realized >= 0 ? 'profit' : 'loss'}
         />
-        <StatCard label="Open Positions" value={String(openPositions.length)} />
+        <StatCard label="Open Positions" value={String(isLive ? openPositions.length : paperTrades.length)} />
         <StatCard label="Pending Orders" value={String(pendingOrders.length)} />
         <StatCard label="Win Rate" value={`${winRate.toFixed(2)}%`} color={winRate >= 50 ? 'profit' : 'neutral'} />
         <StatCard label="Total Trades" value={String(totalTrades)} />
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <article className="rounded-lg border border-emerald-700/40 bg-slate-900 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-100">Live Orders</h2>
-              <p className="text-xs text-slate-400">All active orders on Polymarket (filled + pending).</p>
+        {!isLive && paperTrades.length > 0 && (
+          <section className="rounded-lg border border-yellow-700/40 bg-slate-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-yellow-300">Paper Trades</h2>
+              <span className="rounded-full bg-yellow-900/60 px-3 py-1 text-xs font-medium text-yellow-300">
+                {paperTrades.length} paper
+              </span>
             </div>
-            <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
-              {openPositions.length} live
-            </span>
-          </div>
-          <div className="space-y-2">
-            {openPositions.length > 0 ? openPositions.map((trade, index) => (
-              <div
-                key={String(trade.id || trade.order_id || `open-position-${index}`)}
-                className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-200">
-                      {formatShareCount(trade.shares || trade.actualPosition)}{' '}
-                      <Link 
-                        to={`/weather/${encodeURIComponent(trade.city || 'Unknown')}`}
-                        className="text-emerald-400 hover:text-emerald-300 transition-colors"
+            <p className="mb-3 text-xs text-slate-400">
+              Simulated trades — no real orders on Polymarket.
+            </p>
+            <div className="space-y-2">
+              {paperTrades.map((trade) => (
+                <div
+                  key={trade.id}
+                  className="flex items-center justify-between rounded-md border border-slate-700 bg-slate-800 px-3 py-2"
+                >
+                  <div className="flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <Link
+                        to={`/weather/${encodeURIComponent(trade.city)}`}
+                        className="text-sm font-medium text-slate-100 hover:text-blue-400"
                       >
-                        {String(trade.city || 'Unknown')}
-                      </Link>{' '}
-                      {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
-                      {trade.type && (
-                        <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                          trade.type === 'filled' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'
-                        }`}>
-                          {trade.type === 'filled' ? 'FILLED' : 'PENDING'}
-                        </span>
-                      )}
+                        {trade.city}
+                      </Link>
+                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${
+                        trade.side === 'YES' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                      }`}>
+                        {trade.side}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        @ {formatPriceCents(trade.entry_price)}
+                      </span>
+                    </div>
+                    <p className="max-w-md truncate text-xs text-slate-400">
+                      {trade.question}
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
                   </div>
-                  <div className="text-right text-xs text-slate-400">
-                    <p>{formatDate(trade.event_date || trade.created_at)}</p>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-slate-100">
+                      {formatCurrency(trade.stake_usd)}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {trade.event_date}
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {isLive && (
+          <article className="rounded-lg border border-emerald-700/40 bg-slate-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-100">Live Orders</h2>
+                <p className="text-xs text-slate-400">All active orders on Polymarket (filled + pending).</p>
               </div>
-            )) : (
-              <p className="text-sm text-slate-500">No filled positions right now.</p>
-            )}
-          </div>
-        </article>
+              <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
+                {openPositions.length} live
+              </span>
+            </div>
+            <div className="space-y-2">
+              {openPositions.length > 0 ? openPositions.map((trade, index) => (
+                <div
+                  key={String(trade.id || trade.order_id || `open-position-${index}`)}
+                  className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-200">
+                        {formatShareCount(trade.shares || trade.actualPosition)}{' '}
+                        <Link 
+                          to={`/weather/${encodeURIComponent(trade.city || 'Unknown')}`}
+                          className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          {String(trade.city || 'Unknown')}
+                        </Link>{' '}
+                        {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
+                        {trade.type && (
+                          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                            trade.type === 'filled' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'
+                          }`}>
+                            {trade.type === 'filled' ? 'FILLED' : 'PENDING'}
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
+                    </div>
+                    <div className="text-right text-xs text-slate-400">
+                      <p>{formatDate(trade.event_date || trade.created_at)}</p>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-sm text-slate-500">No filled positions right now.</p>
+              )}
+            </div>
+          </article>
+        )}
 
         <article className="rounded-lg border border-amber-700/40 bg-slate-900 p-4">
           <div className="mb-3 flex items-center justify-between">

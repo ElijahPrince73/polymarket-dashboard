@@ -164,8 +164,8 @@ export async function runTradeDiscovery(dbApi = db) {
         }
         if (!Number.isFinite(noPrice) || noPrice <= 0) continue;
 
-        // Skip if NO is too expensive (>95¢ — tiny payoff not worth the risk)
-        if (noPrice > 0.95) continue;
+        // Skip if NO is too expensive (>97¢ — tiny payoff not worth the risk)
+        if (noPrice > 0.97) continue;
         // Skip if NO is too cheap (<50¢ — market thinks tail is likely, dont fight it)
         if (noPrice < 0.50) continue;
 

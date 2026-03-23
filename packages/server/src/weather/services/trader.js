@@ -74,7 +74,7 @@ export async function runTradeDiscovery(dbApi = db) {
     if (!row.city || !row.event_date) continue;
     const key = `${row.city}|${row.event_date}`;
     anyRowByCityDate.add(key);
-    if (row.status && row.status !== "SKIP") nonSkipByCityDate.add(key);
+    if (row.status === "OPEN") nonSkipByCityDate.add(key);
     if (row.status === "OPEN") {
       const stake = row.stake_usd ?? 0;
       openStakeByCityDate.set(key, (openStakeByCityDate.get(key) ?? 0) + stake);

@@ -361,7 +361,7 @@ export default function Weather() {
                         @ {formatPriceCents(trade.entry_price)}
                       </span>
                     </div>
-                    <p className="max-w-md truncate text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 break-words">
                       {trade.question}
                     </p>
                   </div>

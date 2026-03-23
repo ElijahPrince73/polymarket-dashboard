@@ -515,6 +515,22 @@ export function mountRoutes(app) {
     }
   });
 
+  router.post("/reset-trades", async (_req, res) => {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      const { data, error } = await supabase
+        .from("weather_trades")
+        .delete()
+        .neq("status", "OPEN")
+        .select("id");
+      if (error) throw error;
+      res.json({ ok: true, deleted: data?.length ?? 0 });
+    } catch (error) {
+      res.status(500).json({ error: error?.message || "Reset failed" });
+    }
+  });
+
   app.use("/api/weather", router);
   console.log("[Weather] Routes mounted at /api/weather");
 }

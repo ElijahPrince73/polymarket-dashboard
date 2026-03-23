@@ -127,26 +127,8 @@ export async function runMonitor(dbApi = db) {
       continue;
     }
 
-    if (row.entry_price != null) {
-      const current = row.side === "YES" ? yesPrice : noPrice;
-      if (current <= row.entry_price * 0.8) {
-        let stopNote = `Stop-loss hit at ${current} (entry ${row.entry_price})`;
-        if (isLiveMode() && row.token_id && Number(row.fill_size) > 0) {
-          const sellResult = await placeSellOrder(row.token_id, current, Number(row.fill_size));
-          if (!sellResult.success) {
-            console.error(`[MONITOR] Stop-loss sell failed for ${row.city}: ${sellResult.error}`);
-            continue;
-          }
-          stopNote += ` | LIVE sell ${sellResult.orderId}`;
-        }
-        await dbApi.updateTrade(row.id, {
-          status: "STOP",
-          notes: stopNote,
-        });
-        updated += 1;
-        continue;
-      }
-    }
+    // Stop-loss removed — Half-Kelly sizing already limits downside.
+    // Cheap YES bets on forecast buckets should ride to resolution.
   }
   return { updated, switched };
 }

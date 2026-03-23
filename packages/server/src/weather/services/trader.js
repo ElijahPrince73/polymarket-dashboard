@@ -25,8 +25,6 @@ import {
   normalCdf,
   parseDateFromQuestion,
   parseInequalityC,
-  parseRangeC,
-  parseThresholdC,
 } from "../utils.js";
 
 function nextDay(dateStr) {
@@ -41,16 +39,6 @@ function parseJsonArray(s) {
   } catch {
     return [];
   }
-}
-
-function kellySize(modelProb, price) {
-  // p = model probability of YES winning
-  // payoff = (1/price) - 1 (what you gain per dollar risked if you win)
-  // kelly = (p * payoff - (1-p)) / payoff
-  const p = modelProb;
-  const payoff = 1 / price - 1;
-  const kelly = (p * payoff - (1 - p)) / payoff;
-  return kelly / 2; // half-Kelly
 }
 
 export async function runTradeDiscovery(dbApi = db) {
@@ -141,63 +129,58 @@ export async function runTradeDiscovery(dbApi = db) {
         ? `Forecast tmax=${dayUse.tmax}C σ=${FORECAST_SIGMA} (Blended ${blendedTemps?.modelsUsed ?? 0} models)`
         : `Forecast tmin=${dayUse.tmin}C σ=${FORECAST_SIGMA} (Blended ${blendedTemps?.modelsUsed ?? 0} models)`;
 
-      // === INEQUALITY STRATEGY ===
-      // Evaluate each market independently — no bucket normalization needed
-      // Focus on inequality markets where model confidence is high
+      // === NO-ON-TAILS STRATEGY ===
+      // Bet NO on tail inequality markets where model strongly disagrees
+      // e.g. forecast 81°F, market "73°F or below" priced at 15¢ YES
+      // → buy NO at 85¢, win $0.15 when tail doesnt happen (94% of the time)
       for (const market of tempMarkets) {
         const question = market.question || "";
 
-        // Compute raw model probability for this specific market
-        const range = parseRangeC(question);
         const ineq = parseInequalityC(question);
-        const thr = parseThresholdC(question);
+        if (!ineq) continue;
 
-        let rawProb = 0;
-        if (ineq) {
-          // Inequality: "X or higher", "X or below" — this is what we want
-          const z = (ineq.valueC - forecastTemp) / FORECAST_SIGMA;
-          rawProb = ineq.op === "le" ? normalCdf(z) : 1 - normalCdf(z);
-        } else if (range) {
-          // Range bucket — skip, these are too narrow for reliable prediction
-          continue;
-        } else if (thr) {
-          // Exact threshold — skip, same problem as ranges
-          continue;
-        } else {
-          continue;
-        }
+        // Model probability that YES wins (the tail event happens)
+        const z = (ineq.valueC - forecastTemp) / FORECAST_SIGMA;
+        const yesProbRaw = ineq.op === "le" ? normalCdf(z) : 1 - normalCdf(z);
+        const yesProb = applyCalibration(city.name, type, yesProbRaw);
 
-        const modelProb = applyCalibration(city.name, type, rawProb);
+        // We want to bet NO, so our win probability is 1 - yesProb
+        const noModelProb = 1 - yesProb;
 
-        // Only bet when model is confident (>60%)
-        if (modelProb < 0.60) continue;
+        // Only bet when model is very confident the tail wont happen (>85%)
+        if (noModelProb < 0.85) continue;
 
         const outcomes = parseJsonArray(market.outcomes);
         const tokenIds = parseJsonArray(market.clobTokenIds);
         const outcomePrices = parseJsonArray(market.outcomePrices);
         const yesIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "yes");
-        if (yesIdx < 0) continue;
+        const noIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "no");
+        if (yesIdx < 0 || noIdx < 0) continue;
 
-        let yesPrice = Number.parseFloat(outcomePrices[yesIdx]);
-        if (tokenIds[yesIdx]) {
-          try { yesPrice = await clobPrice(tokenIds[yesIdx]); } catch {}
+        // Get NO price from CLOB
+        let noPrice = Number.parseFloat(outcomePrices[noIdx]);
+        if (tokenIds[noIdx]) {
+          try { noPrice = await clobPrice(tokenIds[noIdx]); } catch {}
         }
-        if (!Number.isFinite(yesPrice) || yesPrice <= 0) continue;
+        if (!Number.isFinite(noPrice) || noPrice <= 0) continue;
 
-        // Skip markets priced below 3c (likely already resolved)
-        if (yesPrice < 0.03) continue;
+        // Skip if NO is too expensive (>95¢ — tiny payoff not worth the risk)
+        if (noPrice > 0.95) continue;
+        // Skip if NO is too cheap (<50¢ — market thinks tail is likely, dont fight it)
+        if (noPrice < 0.50) continue;
 
-        // Skip markets priced above 95c (no value — almost certain, tiny payoff)
-        if (yesPrice > 0.95) continue;
+        // Half-Kelly for NO side
+        const p = noModelProb;
+        const payoff = (1 / noPrice) - 1;
+        const kelly = (p * payoff - (1 - p)) / payoff;
+        const sizePct = kelly / 2;
 
-        // Half-Kelly sizing
-        const sizePct = kellySize(modelProb, yesPrice);
         if (sizePct <= 0) {
-          console.log(`[TRADER] Skipping ${city.name}: Kelly negative (model=${modelProb.toFixed(3)}, price=${yesPrice.toFixed(3)}) | ${question.slice(0,50)}`);
+          console.log(`[TRADER] Skipping ${city.name}: Kelly negative for NO (noProb=${noModelProb.toFixed(3)}, noPrice=${noPrice.toFixed(3)}) | ${question.slice(0,50)}`);
           continue;
         }
 
-        const edge = modelProb - yesPrice;
+        const edge = noModelProb - noPrice;
         let stakeUsd = bankroll * Math.min(sizePct, 0.08);
 
         const candidateDate = dateStr || localDate;
@@ -220,24 +203,23 @@ export async function runTradeDiscovery(dbApi = db) {
           question,
           market_url: event.slug ? `https://polymarket.com/event/${event.slug}` : null,
           event_date: candidateDate,
-          side: "YES",
-          entry_price: yesPrice,
-          model_prob: modelProb,
+          side: "NO",
+          entry_price: noPrice,
+          model_prob: noModelProb,
           edge,
           size_pct: sizePct,
           stake_usd: stakeUsd,
           status: "OPEN",
           result: "PENDING",
-          notes: `${blendedNote} | INEQUALITY | Kelly=${sizePct.toFixed(4)}`,
-          token_id: tokenIds[yesIdx] ?? null,
+          notes: `${blendedNote} | NO_ON_TAIL | yesProb=${yesProb.toFixed(4)} | Kelly=${sizePct.toFixed(4)}`,
+          token_id: tokenIds[noIdx] ?? null,
           condition_id: market.conditionId ?? null,
           neg_risk: market.negRisk ? 1 : 0,
         };
-        // Keep best trade per city+date (highest Kelly, which means best risk/reward)
-        const currentBest = bestByDate.get(candidateDate);
-        if (!currentBest || candidate.size_pct > currentBest.size_pct) {
-          bestByDate.set(candidateDate, candidate);
-        }
+        // Keep ALL qualifying trades per city+date (both tail ends can qualify)
+        // Use a compound key: city|date|question to allow multiple trades
+        const tradeKey = `${candidateDate}|${question}`;
+        bestByDate.set(tradeKey, candidate);
       }
     }
 

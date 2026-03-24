@@ -14,7 +14,7 @@ import { gridSearch, generateParamRanges, DEFAULT_PARAM_RANGES } from '../domain
 import { assembleStatus } from '../services/statusService.js';
 import { fetchLiveTrades, fetchLiveOpenOrders, fetchLivePositions, fetchLiveAnalytics } from '../services/liveService.js';
 import { TradingState } from '../application/TradingState.js';
-import { CONFIG } from '../config.js';
+import { CONFIG_15M as CONFIG } from '../config.js';
 import { getPacificTimeInfo } from '../domain/entryGate.js';
 import { generateSuggestions } from '../services/suggestionService.js';
 import { archiveTrades, getConfigVersions, getArchivedTrades } from '../infrastructure/persistence/tradeArchive.js';
@@ -36,7 +36,7 @@ const host = process.env.HOST || '0.0.0.0';
 function ok(data) { return { success: true, data }; }
 function fail(msg) { return { success: false, error: msg }; }
 
-function filterTradesByTimeframe(trades, timeframe = '5m') {
+function filterTradesByTimeframe(trades, timeframe = '15m') {
   const prefix = timeframe === '15m' ? 'btc-updown-15m-' : 'btc-updown-5m-';
   const otherPrefix = timeframe === '15m' ? 'btc-updown-5m-' : 'btc-updown-15m-';
   return (Array.isArray(trades) ? trades : []).filter((trade) => {
@@ -84,17 +84,17 @@ async function initTradeStore() {
  * Get trades from Supabase (primary) or JSON ledger (fallback).
  * @returns {Promise<Object[]>}
  */
-async function getTradesFromStore(timeframe = '5m') {
+async function getTradesFromStore() {
   if (_tradeStoreAvailable && globalThis.__tradeStore_getTradeStore) {
     try {
       const store = globalThis.__tradeStore_getTradeStore();
-      return filterTradesByTimeframe(await store.getAllTrades(), timeframe);
+      return filterTradesByTimeframe(await store.getAllTrades(), '15m');
     } catch {
       // fallback
     }
   }
   const ledger = getLedger();
-  return filterTradesByTimeframe(Array.isArray(ledger.trades) ? ledger.trades : [], timeframe);
+  return filterTradesByTimeframe(Array.isArray(ledger.trades) ? ledger.trades : [], '15m');
 }
 
 /**
@@ -105,14 +105,14 @@ async function syncTradeToStore(trade, mode = 'paper') {
   if (!_tradeStoreAvailable || !globalThis.__tradeStore_getTradeStore) return;
   try {
     const store = globalThis.__tradeStore_getTradeStore();
-    await store.insertTrade({ ...trade, timeframe: '5m' }, mode);
+    await store.insertTrade({ ...trade, timeframe: '15m' }, mode);
   } catch (err) {
     console.warn('[TradeStore] Sync error:', err.message);
   }
 }
 
 // Expose syncTradeToStore globally for PaperExecutor to call
-globalThis.__syncTradeToStore = syncTradeToStore;
+globalThis.__syncTradeToStore15m = syncTradeToStore;
 
 // Middleware
 app.use(cors());
@@ -129,7 +129,7 @@ app.use(express.static(uiPath, { etag: false, lastModified: false, setHeaders: (
 
 router.get('/status', async (req, res) => {
   try {
-    const data = await assembleStatus();
+    const data = await assembleStatus({ timeframe: '15m', engineKey: '__tradingEngine15m', modeManagerKey: '__modeManager15m', statusKey: '__uiStatus15m' });
     res.json(ok(data));
   } catch (error) {
     console.error('Error fetching status:', error.message);
@@ -264,7 +264,7 @@ router.get('/markets', (req, res) => {
 
 router.get('/live/approvals', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     const approvalService = engine?.executor?.approvalService;
     if (!approvalService) {
       return res.json(ok({ collateral: null, conditional: {}, note: 'ApprovalService not available (paper mode or not initialized)' }));
@@ -278,7 +278,7 @@ router.get('/live/approvals', (req, res) => {
 
 router.get('/portfolio', async (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     const executor = engine?.executor;
 
     // Collateral
@@ -332,7 +332,7 @@ router.get('/portfolio', async (req, res) => {
 
 router.get('/orders', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     const orderManager = engine?.executor?.orderManager;
     if (!orderManager) {
       return res.json(ok({ total: 0, orders: [], note: 'OrderManager not available' }));
@@ -352,7 +352,7 @@ router.get('/orders', (req, res) => {
 
 router.delete('/orders/:id', async (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     const orderManager = engine?.executor?.orderManager;
     if (!orderManager) {
       return res.status(503).json(fail('OrderManager not available'));
@@ -371,7 +371,7 @@ router.delete('/orders/:id', async (req, res) => {
 
 router.get('/metrics', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     const executor = engine?.executor;
     const polyService = globalThis.__polymarketService;
     const rateLimiter = globalThis.__clobRateLimiter;
@@ -402,7 +402,7 @@ router.get('/metrics', (req, res) => {
 
 router.get('/diagnostics', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
     const state = engine.state;
@@ -516,7 +516,7 @@ router.post('/optimizer', async (req, res) => {
 
 router.post('/config', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
     const params = req.body?.params;
@@ -545,7 +545,7 @@ router.post('/config', (req, res) => {
         previousConfig[key] = engine.config[key];
       }
     }
-    globalThis.__previousConfig = previousConfig;
+    globalThis.__previousConfig15m = previousConfig;
 
     // Apply to engine config
     Object.assign(engine.config, validatedParams);
@@ -569,16 +569,16 @@ router.post('/config', (req, res) => {
 
 router.post('/config/revert', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
-    const previousConfig = globalThis.__previousConfig;
+    const previousConfig = globalThis.__previousConfig15m;
     if (!previousConfig || typeof previousConfig !== 'object' || Object.keys(previousConfig).length === 0) {
       return res.status(400).json(fail('No previous config available to revert'));
     }
 
     Object.assign(engine.config, previousConfig);
-    globalThis.__previousConfig = null;
+    globalThis.__previousConfig15m = null;
 
     res.json(ok({ reverted: true }));
   } catch (error) {
@@ -589,7 +589,7 @@ router.post('/config/revert', (req, res) => {
 
 router.get('/config/current', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     const config = engine?.config || CONFIG.paperTrading || {};
 
     const currentConfig = {};
@@ -609,7 +609,7 @@ router.get('/config/current', (req, res) => {
 
     res.json(ok({
       currentConfig,
-      revertAvailable: !!(globalThis.__previousConfig && Object.keys(globalThis.__previousConfig).length > 0),
+      revertAvailable: !!(globalThis.__previousConfig15m && Object.keys(globalThis.__previousConfig15m).length > 0),
     }));
   } catch (error) {
     console.error('Error fetching current config:', error.message);
@@ -628,7 +628,7 @@ router.post('/archive', async (req, res) => {
     const { version, notes } = req.body || {};
     if (!version) return res.status(400).json(fail('version is required'));
 
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     const config = engine?.config || {};
 
     const result = await archiveTrades(version, config, notes || '');
@@ -673,7 +673,7 @@ globalThis.__appliedSuggestions = [];
 
 router.get('/suggestions', async (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
     const state = engine.state;
@@ -740,7 +740,7 @@ router.get('/suggestions', async (req, res) => {
 
 router.post('/suggestions/apply', async (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
     const { configKey, suggestedValue, projected } = req.body || {};
@@ -759,7 +759,7 @@ router.post('/suggestions/apply', async (req, res) => {
         previousConfig[key] = engine.config[key];
       }
     }
-    globalThis.__previousConfig = previousConfig;
+    globalThis.__previousConfig15m = previousConfig;
 
     // Map suggestion configKey to engine config key (some differ)
     const engineKeyMap = {
@@ -857,7 +857,7 @@ router.get('/suggestions/tracking', async (req, res) => {
 
 router.get('/kill-switch/status', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
     const config = engine.config || {};
@@ -879,7 +879,7 @@ router.get('/kill-switch/status', (req, res) => {
 
 router.post('/kill-switch/override', (req, res) => {
   try {
-    const engine = globalThis.__tradingEngine;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
     if (!engine.state?.overrideKillSwitch) {
@@ -901,7 +901,7 @@ router.post('/kill-switch/override', (req, res) => {
 // --- Trading Controls ---
 
 router.post('/trading/start', (req, res) => {
-  const engine = globalThis.__tradingEngine;
+  const engine = globalThis.__tradingEngine15m;
   if (!engine) return res.status(503).json(fail('Engine not initialized'));
   engine.tradingEnabled = true;
   engine._manuallyDisabled = false; // Clear manual stop flag
@@ -909,7 +909,7 @@ router.post('/trading/start', (req, res) => {
 });
 
 router.post('/trading/stop', (req, res) => {
-  const engine = globalThis.__tradingEngine;
+  const engine = globalThis.__tradingEngine15m;
   if (!engine) return res.status(503).json(fail('Engine not initialized'));
   engine.tradingEnabled = false;
   engine._manuallyDisabled = true; // Prevent watchdog from re-enabling
@@ -918,8 +918,8 @@ router.post('/trading/stop', (req, res) => {
 
 router.post('/force-close', async (req, res) => {
   try {
-    const mm = globalThis.__modeManager;
-    const engine = globalThis.__tradingEngine;
+    const mm = globalThis.__modeManager15m;
+    const engine = globalThis.__tradingEngine15m;
     if (!engine) return res.status(500).json(fail('Trading engine not available'));
 
     const executor = mm?.getActiveExecutor?.() || engine?.executor;
@@ -933,7 +933,7 @@ router.post('/force-close', async (req, res) => {
     trade.exitReason = 'Manual Force Close';
     trade.pnl = 0;
 
-    globalThis.__syncTradeToStore?.(trade, trade.mode || executor.getMode());
+    globalThis.__syncTradeToStore15m?.(trade, trade.mode || executor.getMode());
     executor.openTrade = null;
 
     if (engine?.state) {
@@ -949,7 +949,7 @@ router.post('/force-close', async (req, res) => {
 });
 
 router.post('/trading/kill', async (req, res) => {
-  const engine = globalThis.__tradingEngine;
+  const engine = globalThis.__tradingEngine15m;
   if (!engine) return res.status(503).json(fail('Engine not initialized'));
 
   // 1. Stop trading immediately
@@ -980,8 +980,8 @@ router.get('/redeem-status', (req, res) => {
 });
 
 router.get('/trading/status', (req, res) => {
-  const engine = globalThis.__tradingEngine;
-  const mm = globalThis.__modeManager;
+  const engine = globalThis.__tradingEngine15m;
+  const mm = globalThis.__modeManager15m;
   res.json(ok({
     tradingEnabled: engine?.tradingEnabled ?? false,
     mode: mm?.getMode() ?? 'paper',
@@ -990,8 +990,8 @@ router.get('/trading/status', (req, res) => {
 });
 
 router.post('/mode', (req, res) => {
-  const mm = globalThis.__modeManager;
-  const engine = globalThis.__tradingEngine;
+  const mm = globalThis.__modeManager15m;
+  const engine = globalThis.__tradingEngine15m;
   if (!mm || !engine) return res.status(503).json(fail('Not initialized'));
 
   const { mode } = req.body; // 'paper' or 'live'
@@ -1013,7 +1013,7 @@ router.post('/mode', (req, res) => {
 // ─── Health endpoint (Phase 4: INFRA-08) ──────────────────────────
 
 app.get('/health', (req, res) => {
-  const engine = globalThis.__tradingEngine;
+  const engine = globalThis.__tradingEngine15m;
   const uptime = process.uptime();
   const memMb = Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 100) / 100;
 
@@ -1021,7 +1021,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: Math.round(uptime),
-    lastTick: globalThis.__uiStatus?.lastUpdate ?? null,
+    lastTick: globalThis.__uiStatus15m?.lastUpdate ?? null,
     mode: engine?.executor?.getMode?.() ?? 'unknown',
     tradingEnabled: engine?.tradingEnabled ?? false,
     memoryMb: memMb,
@@ -1038,13 +1038,13 @@ app.get('/', (req, res) => {
  * Mount BTC API routes on an external Express app.
  * Routes are mounted at whatever prefix the caller chooses.
  */
-export function mountBtcRoutes(parentApp, prefix = '/api/btc') {
+export function mountBtc15mRoutes(parentApp, prefix = '/api/btc') {
   initializeLedger().catch((e) => console.error('BTC (paper) ledger init failed:', e.message));
   initializeLiveLedger().catch((e) => console.error('BTC (live) ledger init failed:', e.message));
   initTradeStore().catch(err => console.error('[BTC TradeStore] Init failed:', err.message));
 
   parentApp.use(prefix, router);
-  console.log(`[BTC] Routes mounted at ${prefix}`);
+  console.log(`[BTC 15m] Routes mounted at ${prefix}`);
 }
 
 /**

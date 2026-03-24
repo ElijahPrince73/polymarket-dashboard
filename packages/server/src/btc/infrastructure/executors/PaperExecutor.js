@@ -32,6 +32,15 @@ function isNum(x) {
   return typeof x === 'number' && Number.isFinite(x);
 }
 
+function syncTradeToStoreByTimeframe(trade, mode = 'paper', timeframe = '5m') {
+  const fn = timeframe === '15m'
+    ? globalThis.__syncTradeToStore15m
+    : globalThis.__syncTradeToStore;
+  if (typeof fn === 'function') {
+    fn({ ...trade, timeframe }, mode);
+  }
+}
+
 export class PaperExecutor extends OrderExecutor {
   /**
    * @param {Object} opts
@@ -182,7 +191,7 @@ export class PaperExecutor extends OrderExecutor {
     };
 
     await addTrade(trade);
-    globalThis.__syncTradeToStore?.(trade, 'paper');
+    syncTradeToStoreByTimeframe(trade, 'paper', this.config?.timeframe);
     this.openTrade = trade;
 
     return {
@@ -295,7 +304,7 @@ export class PaperExecutor extends OrderExecutor {
     }
 
     await updateTrade(trade.id, trade);
-    globalThis.__syncTradeToStore?.(trade, 'paper');
+    syncTradeToStoreByTimeframe(trade, 'paper', this.config?.timeframe);
     this.openTrade = null;
 
     return {

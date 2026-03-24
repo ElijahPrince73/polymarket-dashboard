@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { CONFIG } from "./config.js";
+import { CONFIG, getConfigForTimeframe } from "./config.js";
 // Data providers - dynamically select based on config.priceFeed
 let klineProvider = null;
 
@@ -21,7 +21,7 @@ import { startCoinbaseTradeStream } from "./data/binanceWs.js";
 import {
   fetchPolymarketSnapshot,
   priceToBeatFromPolymarketMarket,
-  resolveCurrentBtc5mMarket
+  resolveMarketByTimeframe
 } from "./data/polymarket.js";
 
 // Indicators
@@ -74,21 +74,21 @@ import {
 
 // --- Extracted helpers for startApp ---
 
-function computeIndicators(klines1m, currentPrice) {
+function computeIndicators(klines1m, currentPrice, config) {
   const data = { candleCount: klines1m?.length ?? 0 };
-  if (!klines1m || klines1m.length < CONFIG.candleWindowMinutes) return data;
+  if (!klines1m || klines1m.length < config.candleWindowMinutes) return data;
 
   const closes = klines1m.map(c => c.close);
   data.vwapSeries = computeVwapSeries(klines1m);
   data.vwapNow = data.vwapSeries[data.vwapSeries.length - 1];
-  data.vwapSlope = data.vwapSeries.length >= CONFIG.vwapSlopeLookbackMinutes
-    ? (data.vwapNow - data.vwapSeries[data.vwapSeries.length - CONFIG.vwapSlopeLookbackMinutes]) / CONFIG.vwapSlopeLookbackMinutes
+  data.vwapSlope = data.vwapSeries.length >= config.vwapSlopeLookbackMinutes
+    ? (data.vwapNow - data.vwapSeries[data.vwapSeries.length - config.vwapSlopeLookbackMinutes]) / config.vwapSlopeLookbackMinutes
     : null;
   data.vwapDist = data.vwapNow !== null && data.vwapNow !== 0 ? (currentPrice - data.vwapNow) / data.vwapNow : null;
-  data.rsiNow = computeRsi(closes, CONFIG.rsiPeriod);
-  const rsiSeries = closes.map((_, i) => computeRsi(closes.slice(0, i + 1), CONFIG.rsiPeriod)).filter(v => v !== null);
+  data.rsiNow = computeRsi(closes, config.rsiPeriod);
+  const rsiSeries = closes.map((_, i) => computeRsi(closes.slice(0, i + 1), config.rsiPeriod)).filter(v => v !== null);
   data.rsiSlope = slopeLast(rsiSeries, 3);
-  data.macd = computeMacd(closes, CONFIG.macdFast, CONFIG.macdSlow, CONFIG.macdSignal);
+  data.macd = computeMacd(closes, config.macdFast, config.macdSlow, config.macdSignal);
   const haSeries = computeHeikenAshi(klines1m);
   const haCC = countConsecutive(haSeries);
   data.heikenColor = haCC.color;
@@ -188,7 +188,14 @@ function renderConsole({ indicatorsData, timeAware, marketUp, marketDown, klines
   ].filter(Boolean).join("\n") + "\n");
 }
 
-export async function startApp({ skipServer = false } = {}) {
+export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
+  const config = getConfigForTimeframe(timeframe);
+  const is15m = String(timeframe).toLowerCase() === '15m';
+  const engineKey = is15m ? '__tradingEngine15m' : '__tradingEngine';
+  const modeManagerKey = is15m ? '__modeManager15m' : '__modeManager';
+  const statusKey = is15m ? '__uiStatus15m' : '__uiStatus';
+  const llmPredictionKey = is15m ? '__llmPrediction15m' : '__llmPrediction';
+
   // --- Phase 5: Startup environment validation ---
   logEnvValidation();
 
@@ -244,20 +251,20 @@ export async function startApp({ skipServer = false } = {}) {
   const getMarket = () => _cachedMarket;
   const refreshMarket = async () => {
     try {
-      _cachedMarket = await resolveCurrentBtc5mMarket();
+      _cachedMarket = await resolveMarketByTimeframe(timeframe);
       _marketFetchedAt = Date.now();
     } catch { /* best-effort */ }
     return _cachedMarket;
   };
 
-  const paperConfig = { ...CONFIG.paperTrading };
+  const paperConfig = { ...config.paperTrading, timeframe };
   const paperExecutor = new PaperExecutor({ config: paperConfig, getMarket });
   await paperExecutor.initialize();
 
   let liveExecutor = null;
-  if (CONFIG.liveTrading?.enabled) {
+  if (config.liveTrading?.enabled) {
     try {
-      const liveConfig = { ...CONFIG.paperTrading, ...CONFIG.liveTrading };
+      const liveConfig = { ...config.paperTrading, ...config.liveTrading, timeframe };
       liveExecutor = new LiveExecutor({ config: liveConfig, getMarket });
       await liveExecutor.initialize();
     } catch (e) {
@@ -277,12 +284,13 @@ export async function startApp({ skipServer = false } = {}) {
   const activeExecutor = modeManager.getActiveExecutor();
   const currentMode = modeManager.getMode();
   const activeConfig = currentMode === 'live'
-    ? { ...CONFIG.paperTrading, ...CONFIG.liveTrading, _mode: 'live' }
+    ? { ...config.paperTrading, ...config.liveTrading, _mode: 'live', timeframe }
     : {
-      ...CONFIG.paperTrading,
+      ...config.paperTrading,
       _mode: 'paper',
       // Fully disable kill switch in paper mode when paperKillSwitchEnabled is false
-      ...(CONFIG.paperTrading.paperKillSwitchEnabled === false ? { maxDailyLossUsd: 0 } : {}),
+      ...(config.paperTrading.paperKillSwitchEnabled === false ? { maxDailyLossUsd: 0 } : {}),
+      timeframe,
     };
 
   const engine = new TradingEngine({
@@ -307,21 +315,23 @@ export async function startApp({ skipServer = false } = {}) {
   }
 
   // Expose for API routes (server.js, statusService.js)
-  globalThis.__tradingEngine = engine;
-  globalThis.__modeManager = modeManager;
+  globalThis[engineKey] = engine;
+  globalThis[modeManagerKey] = modeManager;
 
   // 4. Install graceful shutdown handlers (Phase 4: INFRA-08)
   let _httpServer = null;
-  installGracefulShutdown({
-    getEngine: () => engine,
-    getStateManager: () => stateManager,
-    getTradingLock: () => tradingLock,
-    getWebhookService: () => webhookService,
-    getTradeStore: () => {
-      try { return globalThis.__tradeStore_getTradeStore?.(); } catch { return null; }
-    },
-    getServer: () => _httpServer,
-  });
+  if (!skipServer) {
+    installGracefulShutdown({
+      getEngine: () => engine,
+      getStateManager: () => stateManager,
+      getTradingLock: () => tradingLock,
+      getWebhookService: () => webhookService,
+      getTradeStore: () => {
+        try { return globalThis.__tradeStore_getTradeStore?.(); } catch { return null; }
+      },
+      getServer: () => _httpServer,
+    });
+  }
 
   // Build lightweight 1m candles from Chainlink ticks for indicators (no exchange dependency).
   const chainlinkCandles1m = [];
@@ -390,7 +400,7 @@ export async function startApp({ skipServer = false } = {}) {
   // Spot reference stream (Coinbase) for impulse/basis metrics
   const spotTicks = [];
   const spotStream = startCoinbaseTradeStream({
-    symbol: CONFIG.coinbase.symbol,
+    symbol: config.coinbase.symbol,
     onUpdate: ({ price, ts }) => {
       if (typeof price !== "number" || !Number.isFinite(price)) return;
       const t = (typeof ts === "number" && Number.isFinite(ts)) ? ts : Date.now();
@@ -483,7 +493,7 @@ export async function startApp({ skipServer = false } = {}) {
       } catch (e) { console.debug('Late candle seed failed:', e.message); }
     }
 
-    const timing = getCandleWindowTiming(CONFIG.candleWindowMinutes);
+    const timing = getCandleWindowTiming(config.candleWindowMinutes);
     const timeLeftMin = timing.remainingMinutes;
 
     let currentPrice = null;
@@ -520,11 +530,11 @@ export async function startApp({ skipServer = false } = {}) {
     // Built from Chainlink ticks (volume=0; VWAP will be null which is fine).
     const klines1m = chainlinkCandles1m;
 
-    if (!klines1m || klines1m.length < CONFIG.candleWindowMinutes) {
+    if (!klines1m || klines1m.length < config.candleWindowMinutes) {
       console.warn(`Not enough Chainlink 1m candles yet (${klines1m?.length || 0}). Indicators might be unreliable.`);
     }
 
-    const polySnapshot = await fetchPolymarketSnapshot();
+    const polySnapshot = await fetchPolymarketSnapshot({ timeframe });
 
     // --- Liquidity sampling (Polymarket) ---
     try {
@@ -540,7 +550,7 @@ export async function startApp({ skipServer = false } = {}) {
       console.debug('Liquidity sampling failed:', e.message);
     }
 
-    const indicatorsData = computeIndicators(klines1m, currentPrice);
+    const indicatorsData = computeIndicators(klines1m, currentPrice, config);
 
     // Normalize indicator names for the engines.
     const engineInputs = {
@@ -557,7 +567,7 @@ export async function startApp({ skipServer = false } = {}) {
 
     const regimeInfo = detectRegime({ ...engineInputs, vwapDist: indicatorsData.vwapDist ?? null, vwapCrossCount: indicatorsData.vwapCrossCount ?? null });
     const scored = scoreDirection(engineInputs);
-    const timeAware = applyTimeAwareness(scored.rawUp, timeLeftMin, CONFIG.candleWindowMinutes);
+    const timeAware = applyTimeAwareness(scored.rawUp, timeLeftMin, config.candleWindowMinutes);
     const marketUp = polySnapshot.ok ? polySnapshot.prices?.up : null;   // decimal (0.56 = 56%)
     const marketDown = polySnapshot.ok ? polySnapshot.prices?.down : null; // decimal (0.56 = 56%)
     // CLOB /price and Gamma API both return prices in decimal (0–1) range.
@@ -591,10 +601,10 @@ export async function startApp({ skipServer = false } = {}) {
       timeLeftMin,
       orderbookImbalance: obImbalance,
       orderbookWall: obWall,
-      llmPrediction: globalThis.__llmPrediction ?? null,
+      llmPrediction: globalThis[llmPredictionKey] ?? null,
     });
     const momentumTimeAware = applyTimeAwarenessMomentum(
-      momentum.rawUp, timeLeftMin, CONFIG.candleWindowMinutes
+      momentum.rawUp, timeLeftMin, config.candleWindowMinutes
     );
 
     // Use momentum model as the active model (old lagging model logged for comparison)
@@ -646,7 +656,7 @@ export async function startApp({ skipServer = false } = {}) {
         candles1m: klines1m,
       }).then(pred => {
         if (pred) {
-          globalThis.__llmPrediction = pred;
+          globalThis[llmPredictionKey] = pred;
           console.log(`[LLM] Prediction cached: ${pred.direction} (${(pred.confidence * 100).toFixed(0)}%)`);
         } else {
           console.warn('[LLM] No prediction returned (null) — check API key');
@@ -658,7 +668,7 @@ export async function startApp({ skipServer = false } = {}) {
 
     const signalsForTrader = buildSignals({ rec, klines1m, polySnapshot, polyPrices, marketUp, marketDown, timeLeftMin, timeAware: activeTimeAware, indicatorsData, spotNow, spotDelta1mPct, candleMeta });
 
-    globalThis.__uiStatus = {
+    globalThis[statusKey] = {
       marketSlug: polySnapshot.ok ? (polySnapshot.market?.slug ?? null) : null,
       timeLeftMin, btcPrice: currentPrice, spotPrice: spotNow, spotDelta1mPct,
       modelUp: activeModelUp, modelDown: activeModelDown, narrative: predictNarrative,
@@ -685,11 +695,11 @@ export async function startApp({ skipServer = false } = {}) {
       volumeAvg: indicatorsData.volumeAvg ?? null,
       marketVolumeNum: polySnapshot.ok ? (polySnapshot.market?.volumeNum ?? null) : null,
       // LLM shadow prediction (if available)
-      llmPrediction: globalThis.__llmPrediction ?? null,
+      llmPrediction: globalThis[llmPredictionKey] ?? null,
     };
 
     // Refresh market cache for executor's getMarket() thunk
-    if (Date.now() - _marketFetchedAt > CONFIG.pollIntervalMs) {
+    if (Date.now() - _marketFetchedAt > config.pollIntervalMs) {
       _cachedMarket = polySnapshot.ok ? polySnapshot.market : _cachedMarket;
     }
 
@@ -712,7 +722,7 @@ export async function startApp({ skipServer = false } = {}) {
     // Phase 4: Webhook alerts for critical events
     if (webhookService?.isConfigured()) {
       // Check kill-switch
-      const ksConfig = engine.config?.maxDailyLossUsd ?? CONFIG.paperTrading?.maxDailyLossUsd;
+      const ksConfig = engine.config?.maxDailyLossUsd ?? config.paperTrading?.maxDailyLossUsd;
       const ksCheck = engine.state?.checkKillSwitch?.(ksConfig);
       if (ksCheck?.triggered) {
         webhookService.alertKillSwitch({
@@ -753,7 +763,7 @@ export async function startApp({ skipServer = false } = {}) {
     prevCurrentPrice = currentPrice;
 
     // Throttle the main loop to avoid API spam + memory growth and to keep the UI responsive.
-    const interval = Number(CONFIG.pollIntervalMs) || 2000;
+    const interval = Number(config.pollIntervalMs) || 2000;
     await sleep(Math.max(250, interval));
     } catch (err) {
       console.error("Loop error:", err);

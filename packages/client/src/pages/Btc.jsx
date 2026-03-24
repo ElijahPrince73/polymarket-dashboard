@@ -8,7 +8,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { forceCloseBtcTrade, setBtcMode, startBtcTrading, stopBtcTrading } from '../api/btc.js';
 import StatCard from '../components/StatCard.jsx';
 // StatusPill removed — replaced by inline Trading Status Banner
 import useApi from '../hooks/useApi.js';
@@ -49,6 +48,14 @@ function buildPnlSeries(trades) {
       pnl: Number(running.toFixed(2)),
     };
   });
+}
+
+async function requestBtcAction(basePath, path, options = {}) {
+  const response = await fetch(`${basePath}${path}`, options);
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`);
+  }
+  return response.json();
 }
 
 /** Build gate status rows: [check, current, required, pass] */
@@ -196,21 +203,26 @@ function buildGateChecks(status) {
   ];
 }
 
-export default function Btc() {
+export function BtcDashboard({
+  basePath = '/api/btc',
+  title = 'Bitcoin',
+  marketPrefix = 'btc-updown-5m-',
+  marketShortPrefix = '5m-',
+} = {}) {
   const [hasOpenTrade, setHasOpenTrade] = useState(false);
   const pollMs = hasOpenTrade ? 1000 : 5000;
-  const { data: status, loading, refetch: refetchStatus } = useApi('/api/btc/status', { pollMs });
+  const { data: status, loading, refetch: refetchStatus } = useApi(`${basePath}/status`, { pollMs });
 
   // Track open trade state for dynamic poll rate
   useEffect(() => {
     setHasOpenTrade(!!status?.openTrade);
   }, [status?.openTrade]);
-  const { data: killSwitch, refetch: refetchKill } = useApi('/api/btc/kill-switch/status');
-  const { data: paperTrades, refetch: refetchTrades } = useApi('/api/btc/trades');
-  const { data: openOrders, refetch: refetchOpenOrders } = useApi('/api/btc/live/open-orders');
-  const { data: portfolio } = useApi('/api/btc/portfolio');
-  const { data: liveAnalytics } = useApi('/api/btc/live/analytics');
-  const { data: liveTrades } = useApi('/api/btc/live/trades');
+  const { data: killSwitch, refetch: refetchKill } = useApi(`${basePath}/kill-switch/status`);
+  const { data: paperTrades, refetch: refetchTrades } = useApi(`${basePath}/trades`);
+  const { data: openOrders, refetch: refetchOpenOrders } = useApi(`${basePath}/live/open-orders`);
+  const { data: portfolio } = useApi(`${basePath}/portfolio`);
+  const { data: liveAnalytics } = useApi(`${basePath}/live/analytics`);
+  const { data: liveTrades } = useApi(`${basePath}/live/trades`);
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sideFilter, setSideFilter] = useState('ALL');
@@ -231,28 +243,36 @@ export default function Btc() {
       setShowLiveConfirm(true);
       return;
     }
-    await setBtcMode(newMode);
+    await requestBtcAction(basePath, '/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: String(newMode).toLowerCase() }),
+    });
     await refreshAll();
   }
 
   async function confirmLiveMode() {
-    await setBtcMode('live');
+    await requestBtcAction(basePath, '/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'live' }),
+    });
     setShowLiveConfirm(false);
     await refreshAll();
   }
 
   async function startTrading() {
-    await startBtcTrading();
+    await requestBtcAction(basePath, '/trading/start', { method: 'POST' });
     await refreshAll();
   }
 
   async function stopTrading() {
-    await stopBtcTrading();
+    await requestBtcAction(basePath, '/trading/stop', { method: 'POST' });
     await refreshAll();
   }
 
   async function forceCloseTrade() {
-    await forceCloseBtcTrade();
+    await requestBtcAction(basePath, '/force-close', { method: 'POST' });
     await refreshAll();
   }
 
@@ -321,6 +341,9 @@ export default function Btc() {
 
   return (
     <div className="space-y-6">
+      <section>
+        <h1 className="text-2xl font-semibold text-slate-100">{title}</h1>
+      </section>
       {/* Live Mode Confirmation Dialog */}
       {showLiveConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -497,7 +520,7 @@ export default function Btc() {
                 const val = Number(pnl);
                 return `${val >= 0 ? '+' : ''}$${val.toFixed(2)}`;
               })()],
-              ['Market', String(status.openTrade.marketSlug || status.runtime?.marketSlug || '--').replace('btc-updown-5m-', '')],
+              ['Market', String(status.openTrade.marketSlug || status.runtime?.marketSlug || '--').replace(marketPrefix, '')],
               ['Entry Reason', String(status.openTrade.entryReason || '--')],
             ].map(([label, value]) => (
               <div key={label}>
@@ -530,7 +553,7 @@ export default function Btc() {
                     rel="noopener noreferrer"
                     className="text-blue-400 hover:underline"
                   >
-                    {status.runtime.marketSlug.replace('btc-updown-5m-', '5m-')}
+                    {status.runtime.marketSlug.replace(marketPrefix, marketShortPrefix)}
                   </a>
                 ) : '--'}
               </p>
@@ -754,4 +777,8 @@ export default function Btc() {
       </section>
     </div>
   );
+}
+
+export default function Btc() {
+  return <BtcDashboard />;
 }

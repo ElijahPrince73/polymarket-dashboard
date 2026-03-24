@@ -39,6 +39,15 @@ function isNum(x) {
   return typeof x === 'number' && Number.isFinite(x);
 }
 
+function syncTradeToStoreByTimeframe(trade, mode = 'live', timeframe = '5m') {
+  const fn = timeframe === '15m'
+    ? globalThis.__syncTradeToStore15m
+    : globalThis.__syncTradeToStore;
+  if (typeof fn === 'function') {
+    fn({ ...trade, timeframe }, mode);
+  }
+}
+
 export class LiveExecutor extends OrderExecutor {
   /**
    * @param {Object} opts
@@ -346,7 +355,7 @@ export class LiveExecutor extends OrderExecutor {
       };
 
       this.openTrade = structuredTrade;
-      globalThis.__syncTradeToStore?.(structuredTrade, 'live');
+      syncTradeToStoreByTimeframe(structuredTrade, 'live', this.config?.timeframe);
 
       console.log(`[live] Fill CONFIRMED: ${side} ${size} shares @ ${(buyPrice * 100).toFixed(1)}¢ ($${fillSizeUsd.toFixed(2)})`);
 
@@ -551,7 +560,7 @@ export class LiveExecutor extends OrderExecutor {
         }
 
         // Sync closed trade to Supabase
-        globalThis.__syncTradeToStore?.(trade, 'live');
+        syncTradeToStoreByTimeframe(trade, 'live', this.config?.timeframe);
         this.openTrade = null;
       }
 
@@ -791,7 +800,7 @@ export class LiveExecutor extends OrderExecutor {
         t.status = 'CLOSED';
         t.exitReason = exitReason;
         t.pnl = pnl;
-        globalThis.__syncTradeToStore?.(t, 'live');
+        syncTradeToStoreByTimeframe(t, 'live', this.config?.timeframe);
         this.openTrade = null;
         console.warn(`[live] Auto-healed: ${t.marketSlug} | ${t.side} | PnL: $${pnl} | ${exitReason}`);
         // Fall through — no open positions to return

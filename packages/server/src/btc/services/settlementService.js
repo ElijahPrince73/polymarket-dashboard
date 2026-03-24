@@ -46,6 +46,16 @@ function getPriceAtTime(targetMs) {
   return best?.price ?? null;
 }
 
+function syncTradeToStoreByMarket(trade) {
+  const slug = String(trade?.marketSlug || '');
+  const is15m = slug.startsWith('btc-updown-15m-') || trade?.timeframe === '15m';
+  const fn = is15m ? globalThis.__syncTradeToStore15m : globalThis.__syncTradeToStore;
+  if (typeof fn === 'function') {
+    return fn({ ...trade, timeframe: is15m ? '15m' : '5m' }, trade.mode || 'paper');
+  }
+  return null;
+}
+
 /**
  * Fetch the definitive outcome from Polymarket's Gamma API.
  * Returns 'UP' or 'DOWN' if resolved, null if not yet resolved.
@@ -177,8 +187,8 @@ export async function checkSettlements({ currentPrice, nowMs = Date.now() } = {}
 
     try {
       const saved = await persistTrade(store, updatedTrade);
-      if (!saved && typeof globalThis.__syncTradeToStore === 'function') {
-        await globalThis.__syncTradeToStore(updatedTrade, updatedTrade.mode || 'paper');
+      if (!saved) {
+        await syncTradeToStoreByMarket(updatedTrade);
       }
       console.log(
         `[Settlement] Trade ${updatedTrade.id}: settled ${settlementSide}, ` +

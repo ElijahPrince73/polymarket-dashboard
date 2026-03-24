@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout.jsx';
 import Analytics from './pages/Analytics.jsx';
 import Btc from './pages/Btc.jsx';
+import Btc15m from './pages/Btc15m.jsx';
 import Compare from './pages/Compare.jsx';
 import Portfolio from './pages/Portfolio.jsx';
 import Trades from './pages/Trades.jsx';
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/" element={<Portfolio />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/btc" element={<Btc />} />
+          <Route path="/btc15m" element={<Btc15m />} />
           <Route path="/weather" element={<Weather />} />
           <Route path="/weather/:city" element={<WeatherCity />} />
           <Route path="/trades" element={<Trades />} />

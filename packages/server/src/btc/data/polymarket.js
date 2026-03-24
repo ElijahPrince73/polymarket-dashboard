@@ -1,4 +1,4 @@
-import { CONFIG } from "../config.js";
+import { CONFIG, CONFIG_15M, getConfigForTimeframe } from "../config.js";
 
 function toNumber(x) {
   const n = Number(x);
@@ -47,6 +47,10 @@ export async function fetchMarketBySlug(slug) {
   if (!market) return null;
 
   return market;
+}
+
+function get15mCurrentEpoch(nowMs = Date.now()) {
+  return Math.floor(nowMs / 900_000) * 900;
 }
 
 export async function fetchMarketsBySeriesSlug({ seriesSlug, limit = 50 }) {
@@ -266,6 +270,7 @@ export function priceToBeatFromPolymarketMarket(market) {
 }
 
 const marketCache = { market: null, fetchedAtMs: 0 };
+const marketCache15m = { market: null, fetchedAtMs: 0, slug: null };
 
 export async function resolveCurrentBtc5mMarket() {
   if (CONFIG.polymarket.marketSlug) {
@@ -292,8 +297,34 @@ export async function resolveCurrentBtc5mMarket() {
   return picked;
 }
 
-export async function fetchPolymarketSnapshot() {
-  const market = await resolveCurrentBtc5mMarket();
+export async function resolveCurrentBtc15mMarket(nowMs = Date.now()) {
+  const config = CONFIG_15M;
+  const slug = `btc-updown-15m-${get15mCurrentEpoch(nowMs)}`;
+
+  if (
+    marketCache15m.market &&
+    marketCache15m.slug === slug &&
+    nowMs - marketCache15m.fetchedAtMs < config.pollIntervalMs
+  ) {
+    return marketCache15m.market;
+  }
+
+  const market = await fetchMarketBySlug(slug);
+  marketCache15m.market = market;
+  marketCache15m.slug = slug;
+  marketCache15m.fetchedAtMs = nowMs;
+  return market;
+}
+
+export async function resolveMarketByTimeframe(timeframe = '5m') {
+  return String(timeframe).toLowerCase() === '15m'
+    ? resolveCurrentBtc15mMarket()
+    : resolveCurrentBtc5mMarket();
+}
+
+export async function fetchPolymarketSnapshot({ timeframe = '5m' } = {}) {
+  const config = getConfigForTimeframe(timeframe);
+  const market = await resolveMarketByTimeframe(timeframe);
   if (!market) return { ok: false, reason: "market_not_found" };
   const outcomes = Array.isArray(market.outcomes) ? market.outcomes : JSON.parse(market.outcomes || "[]");
   const outcomePrices = Array.isArray(market.outcomePrices) ? market.outcomePrices : JSON.parse(market.outcomePrices || "[]");
@@ -303,11 +334,11 @@ export async function fetchPolymarketSnapshot() {
     const label = String(outcomes[i]);
     const tokenId = clobTokenIds[i] ? String(clobTokenIds[i]) : null;
     if (!tokenId) continue;
-    if (label.toLowerCase() === CONFIG.polymarket.upOutcomeLabel.toLowerCase()) upTokenId = tokenId;
-    if (label.toLowerCase() === CONFIG.polymarket.downOutcomeLabel.toLowerCase()) downTokenId = tokenId;
+    if (label.toLowerCase() === config.polymarket.upOutcomeLabel.toLowerCase()) upTokenId = tokenId;
+    if (label.toLowerCase() === config.polymarket.downOutcomeLabel.toLowerCase()) downTokenId = tokenId;
   }
-  const upIndex = outcomes.findIndex((x) => String(x).toLowerCase() === CONFIG.polymarket.upOutcomeLabel.toLowerCase());
-  const downIndex = outcomes.findIndex((x) => String(x).toLowerCase() === CONFIG.polymarket.downOutcomeLabel.toLowerCase());
+  const upIndex = outcomes.findIndex((x) => String(x).toLowerCase() === config.polymarket.upOutcomeLabel.toLowerCase());
+  const downIndex = outcomes.findIndex((x) => String(x).toLowerCase() === config.polymarket.downOutcomeLabel.toLowerCase());
   const gammaYes = upIndex >= 0 ? Number(outcomePrices[upIndex]) : null;
   const gammaNo = downIndex >= 0 ? Number(outcomePrices[downIndex]) : null;
   if (!upTokenId || !downTokenId) {

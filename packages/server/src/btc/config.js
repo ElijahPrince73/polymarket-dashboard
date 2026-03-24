@@ -539,3 +539,48 @@ export const CONFIG = {
   // UI server settings
   uiPort: Number(process.env.UI_PORT) || 8080,
 };
+
+function cloneConfig(config) {
+  return {
+    ...config,
+    kraken: { ...config.kraken },
+    coinbase: { ...config.coinbase },
+    polymarket: { ...config.polymarket },
+    chainlink: { ...config.chainlink },
+    paperTrading: { ...config.paperTrading },
+    liveTrading: config.liveTrading ? { ...config.liveTrading } : null,
+  };
+}
+
+export const CONFIG_15M = (() => {
+  const config = cloneConfig(CONFIG);
+  config.pollIntervalMs = 2_000;
+  config.candleWindowMinutes = 15;
+  config.vwapSlopeLookbackMinutes = 9;
+  config.rsiPeriod = 14;
+  config.rsiMaPeriod = 14;
+  config.macdFast = 12;
+  config.macdSlow = 26;
+  config.macdSignal = 9;
+  config.polymarket = {
+    ...config.polymarket,
+    seriesSlug: process.env.POLYMARKET_SERIES_SLUG_15M || 'btc-up-or-down-15m',
+  };
+  config.paperTrading = {
+    ...config.paperTrading,
+    enabled:
+      (process.env.PAPER_TRADING_ENABLED_15M || 'true').toLowerCase() === 'true',
+    exitBeforeEndMinutes: 0,
+    onlyEntryFinalMinutes: Number(process.env.ONLY_ENTRY_FINAL_MIN_15M) || 7.5,
+    earlyCutSec: Number(process.env.EARLY_CUT_SEC_15M) || 90,
+    stopLossGraceSec: Number(process.env.STOP_LOSS_GRACE_SEC_15M) || 60,
+    lossCooldownMinutes: Number(process.env.LOSS_COOLDOWN_MINUTES_15M) || 15,
+    dynamicStopLossPct: Number(process.env.DYNAMIC_STOP_LOSS_PCT_15M) || 0.15,
+    maxSpread: Number(process.env.MAX_SPREAD_15M) || 0.10,
+  };
+  return config;
+})();
+
+export function getConfigForTimeframe(timeframe = '5m') {
+  return String(timeframe).toLowerCase() === '15m' ? CONFIG_15M : CONFIG;
+}

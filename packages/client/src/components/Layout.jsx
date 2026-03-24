@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 const navItems = [
   { to: '/', label: 'Portfolio', icon: '📊' },
   { to: '/compare', label: 'Compare', icon: '⚖️' },
+  { to: '/btc15m', label: 'BTC 15m', icon: '⏱️' },
   { to: '/btc', label: 'Bitcoin', icon: '₿' },
   { to: '/weather', label: 'Weather', icon: '🌤' },
   { to: '/trades', label: 'Trades', icon: '📋' },

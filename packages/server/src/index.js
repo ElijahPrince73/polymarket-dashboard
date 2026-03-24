@@ -25,6 +25,7 @@ app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
   const engine = globalThis.__tradingEngine;
+  const engine15m = globalThis.__tradingEngine15m;
   const uptime = process.uptime();
   const memMb = Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 100) / 100;
 
@@ -38,6 +39,10 @@ app.get("/api/health", (_req, res) => {
       btc: {
         tradingEnabled: engine?.tradingEnabled ?? false,
         lastTick: globalThis.__uiStatus?.lastUpdate ?? null,
+      },
+      btc15m: {
+        tradingEnabled: engine15m?.tradingEnabled ?? false,
+        lastTick: globalThis.__uiStatus15m?.lastUpdate ?? null,
       },
       weather: {
         initialized: true,
@@ -61,6 +66,7 @@ async function boot() {
   try {
     btc = await import("./btc/boot.js");
     btc.mountRoutes(app);
+    btc.mountRoutes15m(app);
   } catch (err) {
     console.error("[Boot] BTC route mounting failed:", err.message);
   }
@@ -130,6 +136,12 @@ async function boot() {
       console.log("[Boot] BTC trader initialized");
     } catch (err) {
       console.error("[Boot] BTC trader failed to initialize:", err.message);
+    }
+    try {
+      await btc.initialize15m();
+      console.log("[Boot] BTC 15m trader initialized");
+    } catch (err) {
+      console.error("[Boot] BTC 15m trader failed to initialize:", err.message);
     }
   }
   if (weather) {

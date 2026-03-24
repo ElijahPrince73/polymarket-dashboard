@@ -289,11 +289,22 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
   // ── 8. One trade per market: skip rest of 5m window after any exit ──
   const marketSlug = signals.market?.slug;
   const oneTradePerMarket = config.oneTradePerMarket ?? true;
-  // Clear skip when market slug changes (new 5m market)
+  // Clear skip only when the skipped market has actually settled
+  // (Polymarket API can briefly show the next slug before current one ends)
   if (state.skipMarketUntilNextSlug && marketSlug
       && marketSlug !== 'unknown'
       && state.skipMarketUntilNextSlug !== marketSlug) {
-    state.skipMarketUntilNextSlug = null;
+    const skipSlugMatch = state.skipMarketUntilNextSlug.match(/(\d+)$/);
+    if (skipSlugMatch) {
+      const durationSec = state.skipMarketUntilNextSlug.includes('15m') ? 900 : 300;
+      const settlementMs = (Number(skipSlugMatch[1]) + durationSec) * 1000;
+      if (Date.now() > settlementMs) {
+        state.skipMarketUntilNextSlug = null;
+      }
+      // else: skipped market hasn't settled yet — keep the skip active
+    } else {
+      state.skipMarketUntilNextSlug = null; // can't parse, fall back to old behavior
+    }
   }
   if (oneTradePerMarket && state.skipMarketUntilNextSlug && marketSlug
       && state.skipMarketUntilNextSlug === marketSlug) {

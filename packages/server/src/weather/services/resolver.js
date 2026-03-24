@@ -56,8 +56,9 @@ export async function runResolver(dbApi = db) {
     const isClosed = market.closed || event.closed || final.confidence >= 0.95;
     if (!isClosed) continue;
 
-    // Only resolve trades that had real orders placed
-    if (!row.order_id) {
+    // In live mode, only resolve trades that had real orders placed.
+    // In paper mode, resolve all trades (no order_id exists).
+    if (row.trading_mode === "live" && !row.order_id) {
       console.log(`[RESOLVER] Skipping phantom trade ${row.id} (${row.city} ${row.side}) - no order_id`);
       continue;
     }

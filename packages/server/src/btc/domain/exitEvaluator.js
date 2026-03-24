@@ -186,7 +186,8 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
       // Try to derive settlement time from the slug epoch
       const match = position.marketSlug.match(/(\d+)$/);
       if (!match) return null;
-      return (Number(match[1]) + 300) * 1000; // slug epoch + 5 minutes
+      const durationSec = position.marketSlug.includes('15m') ? 900 : 300;
+      return (Number(match[1]) + durationSec) * 1000; // slug epoch + market duration
     })();
 
     const settled = positionSettlementMs && Date.now() > positionSettlementMs;

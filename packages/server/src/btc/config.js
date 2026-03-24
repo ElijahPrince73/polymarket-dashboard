@@ -537,7 +537,8 @@ export const CONFIG_15M = (() => {
     ...config.paperTrading,
     enabled:
       (process.env.PAPER_TRADING_ENABLED_15M || 'true').toLowerCase() === 'true',
-    exitBeforeEndMinutes: 0,
+    exitBeforeEndMinutes: 2.0,
+    noEntryFinalMinutes: 3.0,
     onlyEntryFinalMinutes: 7.5,
     earlyCutSec: 90,
     stopLossGraceSec: 60,

@@ -31,7 +31,7 @@ app.get("/api/health", (_req, res) => {
 
   res.json({
     ok: true,
-    version: '2.1.0-deploy-test',
+    version: '3.0.0',
     timestamp: new Date().toISOString(),
     uptime: Math.round(uptime),
     memoryMb: memMb,

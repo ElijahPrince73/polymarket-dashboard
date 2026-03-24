@@ -180,8 +180,21 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     currentMarketSlug &&
     position.marketSlug !== currentMarketSlug
   ) {
-    result.decision = { reason: 'Market Rollover' };
-    return result;
+    // Only rollover if the positions market has actually settled
+    // Polymarket API can return the next market before the current one ends
+    const positionSettlementMs = (() => {
+      // Try to derive settlement time from the slug epoch
+      const match = position.marketSlug.match(/(\d+)$/);
+      if (!match) return null;
+      return (Number(match[1]) + 300) * 1000; // slug epoch + 5 minutes
+    })();
+
+    const settled = positionSettlementMs && Date.now() > positionSettlementMs;
+    if (settled) {
+      result.decision = { reason: 'Market Rollover' };
+      return result;
+    }
+    // If not settled yet, this is just the API showing the next market early - ignore
   }
 
   // ── 2. Pre-settlement exit ───────────────────────────────────────

@@ -124,8 +124,8 @@ export const CONFIG = {
     // Close before settlement to avoid rollover weirdness.
     // Disabled: let trades ride to settlement instead of force-exiting at a bad price.
     // The market resolves and pays out based on outcome — better than forced exit slippage.
-    // ALL OR NOTHING: ride to settlement. Hardcoded 0.
-    exitBeforeEndMinutes: 0,
+    // Exit 1 min before settlement to avoid rollover losses
+    exitBeforeEndMinutes: 1.0,
 
     // Stagnation exit: if trade is flat (PnL within ±$2) after this many seconds, exit early.
     // v1.0.7 data: trades >25s had 36% WR, +$0.55 avg. Stagnating trades usually hit max loss.
@@ -452,7 +452,7 @@ export const CONFIG = {
     // Time filters
     // For 5m, avoid new entries too close to settlement (rollover risk)
     // Allow entries closer to settlement
-    noEntryFinalMinutes: Number(process.env.NO_ENTRY_FINAL_MIN) || 0,
+    noEntryFinalMinutes: Number(process.env.NO_ENTRY_FINAL_MIN) || 1.5,
     // Only enter in the final X minutes of the market. 0 = disabled.
     // Late-entry strategy: wait for market to show clear direction.
     // Widened from 1.5 to 2.5 — more time for price to reach 70¢+ in the window

@@ -640,6 +640,53 @@ router.post('/archive', async (req, res) => {
 });
 
 /**
+ * DELETE /trades — Delete trades by filter.
+ * Query params:
+ *   - before: ISO timestamp — delete trades with entryTime before this
+ *   - after: ISO timestamp — delete trades with entryTime after this
+ *   - id: trade ID — delete a single trade
+ *   - all: "true" — delete all trades (requires confirmation)
+ */
+router.delete('/trades', async (req, res) => {
+  try {
+    const { before, after, id } = req.query;
+    const store = globalThis.__tradeStore_getTradeStore?.();
+    if (!store?.client) {
+      return res.status(500).json({ success: false, error: 'Trade store not available' });
+    }
+
+    let query = store.client.from('trades').delete();
+    let filter = '';
+
+    if (id) {
+      query = query.eq('id', id);
+      filter = `id=${id}`;
+    } else if (before) {
+      query = query.lt('entryTime', before);
+      filter = `before ${before}`;
+    } else if (after) {
+      query = query.gt('entryTime', after);
+      filter = `after ${after}`;
+    } else if (req.query.all === 'true') {
+      query = query.gte('id', '0');
+      filter = 'all';
+    } else {
+      return res.status(400).json({ success: false, error: 'Provide ?before=, ?after=, ?id=, or ?all=true' });
+    }
+
+    const { data, error } = await query.select();
+    if (error) throw error;
+
+    const count = Array.isArray(data) ? data.length : 0;
+    console.log(`[API] Deleted ${count} trades (filter: ${filter})`);
+    res.json({ success: true, data: { deleted: count, filter } });
+  } catch (error) {
+    console.error('Error deleting trades:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /archive/versions — List all config versions with stats.
  */
 router.get('/archive/versions', async (req, res) => {

@@ -26,7 +26,7 @@ function NavItem({ item, onClick }) {
         ].join(' ')
       }
     >
-      <span className="text-lg">{item.icon}</span>
+      <span className="inline-flex w-6 justify-center text-lg">{item.icon}</span>
       <span className="whitespace-nowrap text-sm font-medium">{item.label}</span>
     </NavLink>
   );

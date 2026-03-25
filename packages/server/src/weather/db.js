@@ -93,7 +93,7 @@ export async function getUnresolvedTrades() {
 export async function getTradesSummary() {
   const { data, error } = await supabase
     .from("weather_trades")
-    .select("city,event_date,status,stake_usd")
+    .select("city,event_date,status,stake_usd,question")
     .eq("trading_mode", getTradingMode());
   if (error) throw new Error(`getTradesSummary failed: ${error.message}`);
   return data ?? [];

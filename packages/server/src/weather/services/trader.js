@@ -53,19 +53,20 @@ export async function runTradeDiscovery(dbApi = db) {
   const stopForDay = todayStr === "2026-03-22" ? false : todayPnl <= -STOP_DAILY_DD_PCT * bankroll;
 
   const rows = await dbApi.getTradesSummary();
-  const anyRowByCityDate = new Set();
-  const nonSkipByCityDate = new Set();
+  const anyRowByCityDateQuestion = new Set();
+  const nonSkipByCityDateQuestion = new Set();
   const openStakeByCityDate = new Map();
   const openStakeToday = new Map();
 
   for (const row of rows) {
     if (!row.city || !row.event_date) continue;
-    const key = `${row.city}|${row.event_date}`;
-    anyRowByCityDate.add(key);
-    if (row.status === "OPEN") nonSkipByCityDate.add(key);
+    const cityDateKey = `${row.city}|${row.event_date}`;
+    const questionKey = `${row.event_date}|${row.question || ''}`;
+    anyRowByCityDateQuestion.add(questionKey);
+    if (row.status === "OPEN") nonSkipByCityDateQuestion.add(questionKey);
     if (row.status === "OPEN") {
       const stake = row.stake_usd ?? 0;
-      openStakeByCityDate.set(key, (openStakeByCityDate.get(key) ?? 0) + stake);
+      openStakeByCityDate.set(cityDateKey, (openStakeByCityDate.get(cityDateKey) ?? 0) + stake);
       openStakeToday.set(row.event_date, (openStakeToday.get(row.event_date) ?? 0) + stake);
     }
   }
@@ -226,12 +227,12 @@ export async function runTradeDiscovery(dbApi = db) {
     const bestEntries = [...bestByDate.values()];
     if (bestEntries.length) {
       for (const entry of bestEntries) {
-        const key = `${entry.city}|${entry.event_date}`;
-        if (!nonSkipByCityDate.has(key)) logs.push(entry);
+        const questionKey = `${entry.event_date}|${entry.question}`;
+        if (!nonSkipByCityDateQuestion.has(questionKey)) logs.push(entry);
       }
     } else {
-      const key = `${city.name}|${localDate}`;
-      if (!anyRowByCityDate.has(key)) {
+      const noMarketKey = `${localDate}|No qualifying market`;
+      if (!anyRowByCityDateQuestion.has(noMarketKey)) {
         logs.push({
           city: city.name,
           station: city.station,

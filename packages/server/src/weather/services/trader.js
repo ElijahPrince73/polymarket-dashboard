@@ -25,6 +25,7 @@ import {
   normalCdf,
   parseDateFromQuestion,
   parseInequalityC,
+  parseRangeC,
 } from "../utils.js";
 
 function nextDay(dateStr) {
@@ -130,59 +131,68 @@ export async function runTradeDiscovery(dbApi = db) {
         ? `Forecast tmax=${dayUse.tmax}C σ=${FORECAST_SIGMA} (Blended ${blendedTemps?.modelsUsed ?? 0} models)`
         : `Forecast tmin=${dayUse.tmin}C σ=${FORECAST_SIGMA} (Blended ${blendedTemps?.modelsUsed ?? 0} models)`;
 
-      // === NO-ON-TAILS STRATEGY ===
-      // Bet NO on tail inequality markets where model strongly disagrees
-      // e.g. forecast 81°F, market "73°F or below" priced at 15¢ YES
-      // → buy NO at 85¢, win $0.15 when tail doesnt happen (94% of the time)
+      // === RANGE BUCKET STRATEGY ===
+      // Buy YES on the 2-3 range buckets closest to the forecast temperature.
+      // These have ~20-35% model probability and are typically priced 10-35¢.
+      // Win rate ~30% but each win pays 3-5x.
+
+      // Collect range buckets with their model probability
+      const rangeCandidates = [];
       for (const market of tempMarkets) {
         const question = market.question || "";
+        const range = parseRangeC(question);
+        if (!range) continue; // Only range markets (e.g. "78-79°F")
 
-        const ineq = parseInequalityC(question);
-        if (!ineq) continue;
+        // Model probability via normal CDF over the range
+        const z1 = (range.lowC - forecastTemp) / FORECAST_SIGMA;
+        const z2 = (range.highC - forecastTemp) / FORECAST_SIGMA;
+        const rawProb = Math.max(0, normalCdf(z2) - normalCdf(z1));
+        const modelProb = applyCalibration(city.name, type, rawProb);
 
-        // Model probability that YES wins (the tail event happens)
-        const z = (ineq.valueC - forecastTemp) / FORECAST_SIGMA;
-        const yesProbRaw = ineq.op === "le" ? normalCdf(z) : 1 - normalCdf(z);
-        const yesProb = applyCalibration(city.name, type, yesProbRaw);
-
-        // We want to bet NO, so our win probability is 1 - yesProb
-        const noModelProb = 1 - yesProb;
-
-        // Only bet when model is very confident the tail wont happen (>85%)
-        if (noModelProb < 0.85) continue;
+        // Only consider buckets with meaningful probability (>15%)
+        if (modelProb < 0.15) continue;
 
         const outcomes = parseJsonArray(market.outcomes);
         const tokenIds = parseJsonArray(market.clobTokenIds);
         const outcomePrices = parseJsonArray(market.outcomePrices);
         const yesIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "yes");
-        const noIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "no");
-        if (yesIdx < 0 || noIdx < 0) continue;
+        if (yesIdx < 0) continue;
 
-        // Get NO price from CLOB
-        let noPrice = Number.parseFloat(outcomePrices[noIdx]);
-        if (tokenIds[noIdx]) {
-          try { noPrice = await clobPrice(tokenIds[noIdx]); } catch {}
+        let yesPrice = Number.parseFloat(outcomePrices[yesIdx]);
+        if (tokenIds[yesIdx]) {
+          try { yesPrice = await clobPrice(tokenIds[yesIdx]); } catch {}
         }
-        if (!Number.isFinite(noPrice) || noPrice <= 0) continue;
+        if (!Number.isFinite(yesPrice) || yesPrice <= 0) continue;
 
-        // Skip if NO is too expensive (>97¢ — tiny payoff not worth the risk)
-        if (noPrice > 0.97) continue;
-        // Skip if NO is too cheap (<50¢ — market thinks tail is likely, dont fight it)
-        if (noPrice < 0.50) continue;
+        // Price filters
+        if (yesPrice < 0.05) continue;  // Too cheap — likely resolved or illiquid
+        if (yesPrice > 0.50) continue;  // Too expensive — poor risk/reward
 
-        // Half-Kelly for NO side
-        const p = noModelProb;
-        const payoff = (1 / noPrice) - 1;
+        // Half-Kelly sizing
+        const p = modelProb;
+        const payoff = (1 / yesPrice) - 1;
         const kelly = (p * payoff - (1 - p)) / payoff;
         const sizePct = kelly / 2;
 
-        if (sizePct <= 0) {
-          console.log(`[TRADER] Skipping ${city.name}: Kelly negative for NO (noProb=${noModelProb.toFixed(3)}, noPrice=${noPrice.toFixed(3)}) | ${question.slice(0,50)}`);
-          continue;
-        }
+        if (sizePct <= 0) continue;
 
-        const edge = noModelProb - noPrice;
-        let stakeUsd = bankroll * Math.min(sizePct, 0.08);
+        rangeCandidates.push({
+          question,
+          market,
+          modelProb,
+          yesPrice,
+          tokenId: tokenIds[yesIdx],
+          sizePct,
+          edge: modelProb - yesPrice,
+        });
+      }
+
+      // Sort by model probability (highest first) and take top 3
+      rangeCandidates.sort((a, b) => b.modelProb - a.modelProb);
+      const topBuckets = rangeCandidates.slice(0, 3);
+
+      for (const bucket of topBuckets) {
+        let stakeUsd = bankroll * Math.min(bucket.sizePct, 0.06); // cap at 6% per trade
 
         const candidateDate = dateStr || localDate;
         if (candidateDate !== tomorrowDate) {
@@ -201,25 +211,24 @@ export async function runTradeDiscovery(dbApi = db) {
         const candidate = {
           city: city.name,
           station: city.station,
-          question,
+          question: bucket.question,
           market_url: event.slug ? `https://polymarket.com/event/${event.slug}` : null,
           event_date: candidateDate,
-          side: "NO",
-          entry_price: noPrice,
-          model_prob: noModelProb,
-          edge,
-          size_pct: sizePct,
+          side: "YES",
+          entry_price: bucket.yesPrice,
+          model_prob: bucket.modelProb,
+          edge: bucket.edge,
+          size_pct: bucket.sizePct,
           stake_usd: stakeUsd,
           status: "OPEN",
           result: "PENDING",
-          notes: `${blendedNote} | NO_ON_TAIL | yesProb=${yesProb.toFixed(4)} | Kelly=${sizePct.toFixed(4)}`,
-          token_id: tokenIds[noIdx] ?? null,
-          condition_id: market.conditionId ?? null,
-          neg_risk: market.negRisk ? 1 : 0,
+          notes: `${blendedNote} | RANGE_BUCKET | Kelly=${bucket.sizePct.toFixed(4)}`,
+          token_id: bucket.tokenId ?? null,
+          condition_id: bucket.market.conditionId ?? null,
+          neg_risk: bucket.market.negRisk ? 1 : 0,
         };
-        // Keep ALL qualifying trades per city+date (both tail ends can qualify)
-        // Use a compound key: city|date|question to allow multiple trades
-        const tradeKey = `${candidateDate}|${question}`;
+        // Use compound key so multiple buckets per city are allowed
+        const tradeKey = `${candidateDate}|${bucket.question}`;
         bestByDate.set(tradeKey, candidate);
       }
     }

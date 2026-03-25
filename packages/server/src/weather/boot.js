@@ -515,6 +515,28 @@ export function mountRoutes(app) {
     }
   });
 
+  router.post("/dedup-trades", async (_req, res) => {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+      const { data: all } = await supabase.from("weather_trades").select("id,city,question,event_date").order("id");
+      const seen = new Map();
+      const dupeIds = [];
+      for (const row of (all || [])) {
+        const key = `${row.city}|${row.question}|${row.event_date}`;
+        if (seen.has(key)) dupeIds.push(row.id);
+        else seen.set(key, row.id);
+      }
+      if (dupeIds.length) {
+        const { error } = await supabase.from("weather_trades").delete().in("id", dupeIds);
+        if (error) throw error;
+      }
+      res.json({ ok: true, deleted: dupeIds.length });
+    } catch (error) {
+      res.status(500).json({ error: error?.message || "Dedup failed" });
+    }
+  });
+
   router.post("/reset-trades", async (_req, res) => {
     try {
       const { createClient } = await import("@supabase/supabase-js");

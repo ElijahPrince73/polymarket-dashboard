@@ -857,7 +857,15 @@ export class LiveExecutor extends OrderExecutor {
     // Use Polymarket prices from signals (same source as PaperExecutor)
     // This is more reliable than fetching orderbooks per-token, which
     // can return null/404 for active markets and caches them as expired
+    const currentSlug = signals.market?.slug ?? null;
+
     return positions.map((p) => {
+      // Skip marking if signals are for a different market than the position
+      // (Polymarket API can flicker to next market before current one settles)
+      if (p.marketSlug && currentSlug && p.marketSlug !== currentSlug) {
+        return { ...p, mark: p.mark ?? null, unrealizedPnl: p.unrealizedPnl ?? null };
+      }
+
       const poly = signals.polyMarketSnapshot;
       const rawUpC = signals.polyPricesCents?.UP ?? null;
       const rawDownC = signals.polyPricesCents?.DOWN ?? null;

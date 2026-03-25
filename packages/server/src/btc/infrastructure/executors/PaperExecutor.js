@@ -351,7 +351,15 @@ export class PaperExecutor extends OrderExecutor {
    * @returns {Promise<PositionView[]>}
    */
   async markPositions(positions, signals) {
+    const currentSlug = signals.market?.slug ?? null;
+
     return positions.map((p) => {
+      // Skip marking if the signals are for a different market than the position
+      // (Polymarket API can flicker to the next market before the current one settles)
+      if (p.marketSlug && currentSlug && p.marketSlug !== currentSlug) {
+        return { ...p, mark: p.mark ?? null, unrealizedPnl: p.unrealizedPnl ?? null };
+      }
+
       // Determine current price from Polymarket prices
       const poly = signals.polyMarketSnapshot;
       const rawUpC = signals.polyPricesCents?.UP ?? null;

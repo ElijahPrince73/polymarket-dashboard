@@ -199,7 +199,18 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
   }
 
   // ── 2. Pre-settlement exit ───────────────────────────────────────
-  if (isNum(timeLeftForExit) && timeLeftForExit < exitBeforeEndMin) {
+  // Use the POSITION's market settlement time, not the current market's endDate
+  // (the API can switch to the next market before this one settles)
+  let positionTimeLeftMin = timeLeftForExit; // default fallback
+  if (position.marketSlug) {
+    const slugMatch = position.marketSlug.match(/(\d+)$/);
+    if (slugMatch) {
+      const durationSec = position.marketSlug.includes('15m') ? 900 : 300;
+      const posSettlementMs = (Number(slugMatch[1]) + durationSec) * 1000;
+      positionTimeLeftMin = (posSettlementMs - now) / 60000;
+    }
+  }
+  if (isNum(positionTimeLeftMin) && positionTimeLeftMin < exitBeforeEndMin) {
     result.decision = { reason: 'Pre-settlement Exit' };
     return result;
   }

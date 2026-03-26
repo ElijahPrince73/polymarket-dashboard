@@ -1,5 +1,6 @@
 import db from "../db.js";
 import { detectMarketType, fetchJson } from "../utils.js";
+import { fetchObservedHighTemp } from "./visual-crossing.js";
 
 function extractEventSlug(url) {
   const m = String(url || "").match(/polymarket\.com\/event\/([^/?#]+)/i);
@@ -71,20 +72,47 @@ export async function runResolver(dbApi = db) {
           : -row.stake_usd
         : null;
 
+    const type = detectMarketType(row.question) || "other";
+    const actualObservation =
+      type === "temp_max" && row.city && row.event_date
+        ? await fetchObservedHighTemp(row.city, row.event_date)
+        : null;
+    const actualTemp = actualObservation?.actualTemp ?? null;
+    const forecastError =
+      row.forecast_temp != null && actualTemp != null
+        ? Math.abs(row.forecast_temp - actualTemp)
+        : null;
+
     await dbApi.updateTrade(row.id, {
       status: "RESOLVED",
       result: win ? "WIN" : "LOSS",
       pnl,
+      actual_temp: actualTemp,
+      forecast_error: forecastError,
       resolved_at: now,
     });
     resolved += 1;
 
     if (row.model_prob != null) {
-      const type = detectMarketType(row.question) || "other";
-      const prev = (await dbApi.getCalibration(row.city || "Unknown", type))?.bias ?? 0;
+      const prevRow = await dbApi.getCalibration(row.city || "Unknown", type);
+      const prev = prevRow?.bias ?? 0;
       const err = final.val - row.model_prob;
       const bias = prev * 0.9 + err * 0.1;
-      await dbApi.upsertCalibration(row.city || "Unknown", type, bias, now);
+      const resolvedCount = (prevRow?.resolved_count ?? 0) + (forecastError != null ? 1 : 0);
+      const avgError =
+        forecastError != null
+          ? (((prevRow?.avg_error ?? 0) * (resolvedCount - 1)) + forecastError) / resolvedCount
+          : prevRow?.avg_error;
+
+      await dbApi.upsertCalibration(row.city || "Unknown", type, {
+        bias,
+        sigma: avgError ?? prevRow?.sigma,
+        actual_temp: actualTemp,
+        forecast_error: forecastError,
+        last_actual_temp: actualTemp,
+        resolved_count: resolvedCount,
+        avg_error: avgError,
+      }, now);
     }
   }
   return { resolved };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CITIES, MAX_SLIPPAGE, SIGMA_C, SIGMA_F } from "../../src/weather/config.js";
+import { CITIES, MAX_SLIPPAGE, MIN_VOLUME, SIGMA_C, SIGMA_F } from "../../src/weather/config.js";
 
 describe("weather config", () => {
   it("defines the required fields for every city", () => {
@@ -54,5 +54,9 @@ describe("weather config", () => {
   it("keeps max slippage inside a sane range", () => {
     expect(MAX_SLIPPAGE).toBeGreaterThanOrEqual(0);
     expect(MAX_SLIPPAGE).toBeLessThanOrEqual(0.10);
+  });
+
+  it("uses a positive minimum market volume filter", () => {
+    expect(MIN_VOLUME).toBeGreaterThan(0);
   });
 });

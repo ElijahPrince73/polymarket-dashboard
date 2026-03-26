@@ -20,6 +20,7 @@ function parseResolved(outcomes, prices) {
 
 const mocks = vi.hoisted(() => ({
   fetchJson: vi.fn(),
+  fetchObservedHighTemp: vi.fn(),
 }));
 
 vi.mock("../../src/weather/utils.js", async () => {
@@ -32,6 +33,10 @@ vi.mock("../../src/weather/utils.js", async () => {
 
 vi.mock("../../src/weather/db.js", () => ({
   default: {},
+}));
+
+vi.mock("../../src/weather/services/visual-crossing.js", () => ({
+  fetchObservedHighTemp: mocks.fetchObservedHighTemp,
 }));
 
 const { runResolver } = await import("../../src/weather/services/resolver.js");
@@ -62,6 +67,7 @@ function makeDbApi(trades) {
 describe("weather resolver", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.fetchObservedHighTemp.mockResolvedValue(null);
   });
 
   it("parseResolved detects YES wins, NO wins, and unresolved markets", () => {
@@ -86,7 +92,15 @@ describe("weather resolver", () => {
     };
 
     const yesWinDb = makeDbApi([
-      { id: 1, ...tradeBase, side: "YES", entry_price: 0.4, stake_usd: 20, trading_mode: "paper", model_prob: 0.6 },
+      {
+        id: 1,
+        ...tradeBase,
+        side: "YES",
+        entry_price: 0.4,
+        stake_usd: 20,
+        trading_mode: "paper",
+        model_prob: 0.6,
+      },
     ]);
     mocks.fetchJson.mockResolvedValueOnce(makeEvent([0.97, 0.03]));
     await runResolver(yesWinDb);
@@ -152,5 +166,54 @@ describe("weather resolver", () => {
 
     await expect(runResolver(dbApi)).resolves.toEqual({ resolved: 0 });
     expect(dbApi.updateTrade).not.toHaveBeenCalled();
+  });
+
+  it("enriches resolved temp_max trades with actual temperature and rolling calibration error", async () => {
+    const dbApi = makeDbApi([
+      {
+        id: 4,
+        city: "Dallas",
+        question: "Will Dallas highest temperature be between 78-79°F on March 25?",
+        market_url: "https://polymarket.com/event/dallas-temp",
+        event_date: "2026-03-25",
+        side: "YES",
+        entry_price: 0.4,
+        stake_usd: 20,
+        trading_mode: "paper",
+        model_prob: 0.6,
+        forecast_temp: 80,
+      },
+    ]);
+    dbApi.getCalibration.mockResolvedValue({
+      bias: 0.1,
+      avg_error: 1.5,
+      resolved_count: 10,
+      sigma: 1.5,
+    });
+    mocks.fetchObservedHighTemp.mockResolvedValue({
+      actualTemp: 78,
+      unit: "F",
+      fetchedAt: "2026-03-26T00:00:00.000Z",
+    });
+    mocks.fetchJson.mockResolvedValueOnce(makeEvent([0.97, 0.03]));
+
+    await expect(runResolver(dbApi)).resolves.toEqual({ resolved: 1 });
+    expect(mocks.fetchObservedHighTemp).toHaveBeenCalledWith("Dallas", "2026-03-25");
+    expect(dbApi.updateTrade).toHaveBeenCalledWith(
+      4,
+      expect.objectContaining({
+        result: "WIN",
+        actual_temp: 78,
+        forecast_error: 2,
+      })
+    );
+    const [, , calibrationUpdate] = dbApi.upsertCalibration.mock.calls[0];
+    expect(calibrationUpdate.bias).toBeCloseTo(0.13, 6);
+    expect(calibrationUpdate.actual_temp).toBe(78);
+    expect(calibrationUpdate.forecast_error).toBe(2);
+    expect(calibrationUpdate.last_actual_temp).toBe(78);
+    expect(calibrationUpdate.resolved_count).toBe(11);
+    expect(calibrationUpdate.avg_error).toBeCloseTo(1.5454545, 6);
+    expect(calibrationUpdate.sigma).toBeCloseTo(1.5454545, 6);
   });
 });

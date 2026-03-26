@@ -43,6 +43,9 @@ export async function insertTrade(trade) {
     fill_size: trade.fill_size ?? null,
     condition_id: trade.condition_id ?? null,
     neg_risk: trade.neg_risk ?? 0,
+    forecast_temp: trade.forecast_temp ?? null,
+    actual_temp: trade.actual_temp ?? null,
+    forecast_error: trade.forecast_error ?? null,
     trading_mode: getTradingMode(),
     resolved_at: trade.resolved_at ?? null,
   };
@@ -56,6 +59,7 @@ const UPDATABLE_COLUMNS = new Set([
   "entry_price", "model_prob", "edge", "size_pct", "stake_usd",
   "status", "result", "pnl", "notes", "token_id", "order_id",
   "fill_size", "condition_id", "neg_risk", "trading_mode", "resolved_at",
+  "forecast_temp", "actual_temp", "forecast_error",
 ]);
 
 export async function updateTrade(id, updates) {
@@ -236,12 +240,15 @@ export async function getCalibration(city, marketType) {
 export async function upsertCalibration(
   city,
   marketType,
-  bias,
-  updatedAt = new Date().toISOString(),
-  sigma = undefined
+  updates = {},
+  updatedAt = new Date().toISOString()
 ) {
-  const row = { city, market_type: marketType, bias, updated_at: updatedAt };
-  if (sigma !== undefined) row.sigma = sigma;
+  const row = { city, market_type: marketType, updated_at: updatedAt };
+  if (typeof updates === "number") {
+    row.bias = updates;
+  } else if (updates && typeof updates === "object") {
+    Object.assign(row, updates);
+  }
   const { error } = await supabase
     .from("weather_calibration")
     .upsert(row, { onConflict: "city,market_type" });

@@ -1,4 +1,13 @@
 -- Migration: ALTER TABLE weather_trades ADD COLUMN IF NOT EXISTS trading_mode TEXT DEFAULT 'paper';
+ALTER TABLE IF EXISTS weather_trades ADD COLUMN IF NOT EXISTS forecast_temp DOUBLE PRECISION;
+ALTER TABLE IF EXISTS weather_trades ADD COLUMN IF NOT EXISTS actual_temp DOUBLE PRECISION;
+ALTER TABLE IF EXISTS weather_trades ADD COLUMN IF NOT EXISTS forecast_error DOUBLE PRECISION;
+ALTER TABLE IF EXISTS weather_calibration ADD COLUMN IF NOT EXISTS avg_error DOUBLE PRECISION;
+ALTER TABLE IF EXISTS weather_calibration ADD COLUMN IF NOT EXISTS resolved_count INTEGER DEFAULT 0;
+ALTER TABLE IF EXISTS weather_calibration ADD COLUMN IF NOT EXISTS last_actual_temp DOUBLE PRECISION;
+ALTER TABLE IF EXISTS weather_calibration ADD COLUMN IF NOT EXISTS actual_temp DOUBLE PRECISION;
+ALTER TABLE IF EXISTS weather_calibration ADD COLUMN IF NOT EXISTS forecast_error DOUBLE PRECISION;
+ALTER TABLE IF EXISTS weather_calibration ADD COLUMN IF NOT EXISTS sigma DOUBLE PRECISION;
 -- Weather trades table (mirrors SQLite schema)
 CREATE TABLE IF NOT EXISTS weather_trades (
   id BIGSERIAL PRIMARY KEY,
@@ -22,6 +31,9 @@ CREATE TABLE IF NOT EXISTS weather_trades (
   fill_size INTEGER,
   condition_id TEXT,
   neg_risk INTEGER DEFAULT 0,
+  forecast_temp DOUBLE PRECISION,
+  actual_temp DOUBLE PRECISION,
+  forecast_error DOUBLE PRECISION,
   trading_mode TEXT DEFAULT 'paper',
   resolved_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -33,6 +45,12 @@ CREATE TABLE IF NOT EXISTS weather_calibration (
   city TEXT NOT NULL,
   market_type TEXT NOT NULL,
   bias DOUBLE PRECISION,
+  sigma DOUBLE PRECISION,
+  avg_error DOUBLE PRECISION,
+  resolved_count INTEGER DEFAULT 0,
+  last_actual_temp DOUBLE PRECISION,
+  actual_temp DOUBLE PRECISION,
+  forecast_error DOUBLE PRECISION,
   updated_at TIMESTAMPTZ,
   UNIQUE(city, market_type)
 );

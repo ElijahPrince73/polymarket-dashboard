@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   placeBuyOrder: vi.fn(),
   fmtDateInTz: vi.fn(),
   parseDateFromQuestion: vi.fn(),
+  getCityAccuracy: vi.fn(),
+  computeAdaptiveSigma: vi.fn(),
 }));
 
 vi.mock("../../src/weather/config.js", () => ({
@@ -35,6 +37,7 @@ vi.mock("../../src/weather/config.js", () => ({
   MAX_DAILY_EXPOSURE_PCT: 0.25,
   MIN_HOURS_TO_CLOSE: 3,
   MIN_MODEL_CONSENSUS: 1,
+  MIN_VOLUME: 2000,
   SIGMA_C: 1.2,
   SIGMA_F: 2.0,
   STOP_DAILY_DD_PCT: 0.05,
@@ -58,6 +61,11 @@ vi.mock("../../src/weather/services/exchange.js", () => ({
   isLiveMode: mocks.isLiveMode,
   getBalance: mocks.getBalance,
   placeBuyOrder: mocks.placeBuyOrder,
+}));
+
+vi.mock("../../src/weather/services/calibration.js", () => ({
+  getCityAccuracy: mocks.getCityAccuracy,
+  computeAdaptiveSigma: mocks.computeAdaptiveSigma,
 }));
 
 vi.mock("../../src/weather/utils.js", async () => {
@@ -88,11 +96,13 @@ function makeEvent(question, outcomePrices) {
     slug: "dallas-temp",
     closed: false,
     endDate: "2026-03-25T18:00:00Z",
+    volume: 5000,
     markets: [
       {
         question,
         closed: false,
         active: true,
+        volume: 5000,
         outcomes: JSON.stringify(["Yes", "No"]),
         outcomePrices: JSON.stringify(outcomePrices),
         clobTokenIds: JSON.stringify([]),
@@ -103,7 +113,7 @@ function makeEvent(question, outcomePrices) {
   }];
 }
 
-async function runScenario({ city, question, forecastTempC, outcomePrices, calibration = null }) {
+async function runScenario({ city, question, forecastTempC, outcomePrices, calibration = null, markets = null }) {
   config.CITIES.splice(0, config.CITIES.length, city);
   config.MODEL_CANDIDATES[city.name] = [];
 
@@ -119,7 +129,14 @@ async function runScenario({ city, question, forecastTempC, outcomePrices, calib
   mocks.fetchMetar.mockResolvedValue({ tempC: forecastTempC });
   mocks.forecastHourlyBlended.mockResolvedValue({ tmax: forecastTempC, tmin: forecastTempC - 5, modelsUsed: 2 });
   mocks.pickDailyForDate.mockReturnValue({ tmax: forecastTempC, tmin: forecastTempC - 5 });
-  mocks.searchMarkets.mockResolvedValue(makeEvent(question, outcomePrices));
+  mocks.searchMarkets.mockResolvedValue(markets ?? makeEvent(question, outcomePrices));
+  mocks.getCityAccuracy.mockResolvedValue({
+    avgError: calibration?.avg_error ?? null,
+    resolvedCount: calibration?.resolved_count ?? 0,
+    sigma: calibration?.sigma ?? null,
+    kellyMultiplier: 0.5,
+  });
+  mocks.computeAdaptiveSigma.mockResolvedValue(calibration?.sigma ?? (city.unit === "F" ? 2.0 : 1.2));
   mocks.clobPrice.mockImplementation(async () => {
     throw new Error("should not be called");
   });
@@ -193,6 +210,7 @@ describe("weather trader", () => {
       outcomePrices: [0.2, 0.8],
     });
     expect(fTrades.find((trade) => trade.status === "OPEN")?.notes).toContain("σ=2");
+    expect(mocks.computeAdaptiveSigma).toHaveBeenCalled();
 
     const cTrades = await runScenario({
       city: {
@@ -209,6 +227,45 @@ describe("weather trader", () => {
       outcomePrices: [0.2, 0.8],
     });
     expect(cTrades.find((trade) => trade.status === "OPEN")?.notes).toContain("σ=1.2");
+  });
+
+  it("skips markets below the minimum volume threshold", async () => {
+    const city = {
+      name: "Dallas",
+      station: "KDAL",
+      lat: 32.847,
+      lon: -96.852,
+      tz: "America/Chicago",
+      unit: "F",
+      aliases: ["Dallas"],
+    };
+
+    const trades = await runScenario({
+      city,
+      question: "Will Dallas highest temperature be between 78-79°F on March 25?",
+      forecastTempC: 26,
+      outcomePrices: [0.2, 0.8],
+      markets: [{
+        slug: "dallas-temp",
+        closed: false,
+        endDate: "2026-03-25T18:00:00Z",
+        markets: [
+          {
+            question: "Will Dallas highest temperature be between 78-79°F on March 25?",
+            closed: false,
+            active: true,
+            volume: 1500,
+            outcomes: JSON.stringify(["Yes", "No"]),
+            outcomePrices: JSON.stringify([0.2, 0.8]),
+            clobTokenIds: JSON.stringify([]),
+            conditionId: "cond-1",
+            negRisk: false,
+          },
+        ],
+      }],
+    });
+
+    expect(trades.find((trade) => trade.status === "OPEN")).toBeUndefined();
   });
 
   it("skips markets when slippage exceeds MAX_SLIPPAGE", async () => {

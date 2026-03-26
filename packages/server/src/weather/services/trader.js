@@ -6,12 +6,14 @@ import {
   MAX_DAILY_EXPOSURE_PCT,
   MIN_HOURS_TO_CLOSE,
   MIN_MODEL_CONSENSUS,
+  MIN_VOLUME,
   SIGMA_C,
   SIGMA_F,
   STOP_DAILY_DD_PCT,
   BASE_BANKROLL,
 } from "../config.js";
 import db from "../db.js";
+import { computeAdaptiveSigma, getCityAccuracy } from "./calibration.js";
 import {
   clobPrice,
   fetchMetar,
@@ -41,6 +43,26 @@ function parseJsonArray(s) {
   } catch {
     return [];
   }
+}
+
+function parseVolume(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[$,]/g, "");
+    const parsed = Number.parseFloat(cleaned);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function extractMarketVolume(market, event) {
+  return (
+    parseVolume(market?.volumeNum) ??
+    parseVolume(market?.volume) ??
+    parseVolume(event?.volumeNum) ??
+    parseVolume(event?.volume) ??
+    0
+  );
 }
 
 export async function runTradeDiscovery(dbApi = db) {
@@ -134,8 +156,14 @@ export async function runTradeDiscovery(dbApi = db) {
       if (forecastTemp == null) continue;
       const defaultSigma = city.unit === "F" ? SIGMA_F : SIGMA_C;
       const calRow = await dbApi.getCalibration(city.name, type);
-      const sigma = calRow?.sigma || defaultSigma;
+      const accuracy = await getCityAccuracy(city.name, type, dbApi);
+      const sigma = await computeAdaptiveSigma(city.name, defaultSigma, type, dbApi, accuracy);
       const bias = calRow?.bias ?? 0;
+      const kellyMultiplier = accuracy.kellyMultiplier;
+      console.log(
+        `[TRADER] Calibration ${city.name} ${type}: avgError=${accuracy.avgError ?? "n/a"} ` +
+        `resolved=${accuracy.resolvedCount} sigma=${sigma} kellyMultiplier=${kellyMultiplier}`
+      );
 
       const dateStr = parseDateFromQuestion(tempMarkets[0].question, city.tz) || eventDate;
       if (dateStr && dateStr < localDate) continue;
@@ -153,6 +181,11 @@ export async function runTradeDiscovery(dbApi = db) {
       const rangeCandidates = [];
       for (const market of tempMarkets) {
         const question = market.question || "";
+        const volume = extractMarketVolume(market, event);
+        if (volume < MIN_VOLUME) {
+          console.log(`[TRADER] Skipping ${city.name}: low volume (${volume}) | ${question.slice(0, 60)}`);
+          continue;
+        }
         const range = parseRangeC(question);
         if (!range) continue; // Only range markets (e.g. "78-79°F")
 
@@ -198,7 +231,7 @@ export async function runTradeDiscovery(dbApi = db) {
         const p = modelProb;
         const payoff = (1 / yesPrice) - 1;
         const kelly = (p * payoff - (1 - p)) / payoff;
-        const sizePct = kelly / 2;
+        const sizePct = (kelly / 2) * kellyMultiplier;
 
         if (sizePct <= 0) continue;
 
@@ -246,9 +279,12 @@ export async function runTradeDiscovery(dbApi = db) {
           edge: bucket.edge,
           size_pct: bucket.sizePct,
           stake_usd: stakeUsd,
+          forecast_temp: forecastTemp,
           status: "OPEN",
           result: "PENDING",
-          notes: `${blendedNote} | RANGE_BUCKET | Kelly=${bucket.sizePct.toFixed(4)}`,
+          notes:
+            `${blendedNote} | RANGE_BUCKET | Kelly=${bucket.sizePct.toFixed(4)} ` +
+            `| AvgErr=${accuracy.avgError ?? "n/a"} | KellyMult=${kellyMultiplier}`,
           token_id: bucket.tokenId ?? null,
           condition_id: bucket.market.conditionId ?? null,
           neg_risk: bucket.market.negRisk ? 1 : 0,

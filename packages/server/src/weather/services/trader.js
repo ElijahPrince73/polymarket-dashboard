@@ -74,7 +74,8 @@ export async function runTradeDiscovery(dbApi = db) {
   const todayPnl = await dbApi.getTodayResolvedPnl();
   // Reset daily stop for 2026-03-22 — new strategy deployed mid-day, old losses shouldn't block it
   const todayStr = new Date().toISOString().slice(0, 10);
-  const stopForDay = todayStr === "2026-03-22" ? false : todayPnl <= -STOP_DAILY_DD_PCT * bankroll;
+  // Disable daily stop-loss in paper mode — we need data to calibrate
+  const stopForDay = isLiveMode() ? todayPnl <= -STOP_DAILY_DD_PCT * bankroll : false;
 
   const rows = await dbApi.getTradesSummary();
   const anyRowByCityDateQuestion = new Set();

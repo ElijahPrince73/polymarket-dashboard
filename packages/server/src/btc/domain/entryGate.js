@@ -99,57 +99,37 @@ export function computeEffectiveThresholds(config, isWeekend, phase, sideInferre
 export function computeEntryBlockers(signals, config, state, candleCount) {
   const blockers = [];
 
-  // ── 1. Rec gating ───────────────────────────────────────────────
-  const rec = signals?.rec;
-  const strictRec = String(config.recGating || 'loose') === 'strict';
-
-  if (strictRec && rec?.action !== 'ENTER') {
-    blockers.push(`Rec=${rec?.action || 'NONE'} (strict)`);
-    return { blockers, effectiveSide: null, sideInferred: false };
-  }
-
-  // Non-strict: block on NO_TRADE but allow ENTER
-  if (!strictRec && rec?.action !== 'ENTER') {
-    blockers.push(`Rec=${rec?.action || 'NONE'} (loose)`);
-  }
-
-  // ── 1b. Trading Hours (PST) ─────────────────────────────────────
-  // Data: 6 AM - 5 PM PST is profitable, overnight is a bloodbath
+  // ── 1. Trading Hours (PST) ──────────────────────────────────────
   const tradingHoursEnabled = config.tradingHoursEnabled ?? true;
   if (tradingHoursEnabled) {
     const { hour: pstHour } = getPacificTimeInfo();
-    const startHour = config.tradingHoursStart ?? 6;  // 6 AM PST
-    const endHour = config.tradingHoursEnd ?? 17;     // 5 PM PST
+    const startHour = config.tradingHoursStart ?? 6;
+    const endHour = config.tradingHoursEnd ?? 17;
     if (pstHour < startHour || pstHour >= endHour) {
       blockers.push(`Outside trading hours (${pstHour}:00 PST, allowed ${startHour}-${endHour})`);
     }
   }
 
-  // ── 1c. Escalating Loss Cooldown ────────────────────────────────
-  // After consecutive losses, cooldown grows: 5 min → 10 min → 15 min
-  // Data: after a loss, only 34% chance of winning next. Streaks cluster.
+  // ── 2. Escalating Loss Cooldown ─────────────────────────────────
   const cooldownEnabled = config.lossCooldownEnabled ?? true;
   if (cooldownEnabled && state) {
     const lastTrade = state.lastClosedTrade ?? null;
     const streak = state.consecutiveLosses ?? 0;
     if (lastTrade && (lastTrade.pnl ?? 0) <= 0 && streak > 0) {
       const baseMins = config.lossCooldownMinutes ?? 5;
-      const cooldownMins = Math.min(baseMins * streak, 30); // cap at 30 min
+      const cooldownMins = Math.min(baseMins * streak, 30);
       const cooldownMs = cooldownMins * 60_000;
       const lastExitMs = lastTrade.exitTimeMs ?? 0;
       const elapsed = Date.now() - lastExitMs;
       if (elapsed < cooldownMs) {
         const remaining = Math.ceil((cooldownMs - elapsed) / 1000);
         blockers.push(`Loss cooldown (${remaining}s, streak ${streak}, ${cooldownMins}min)`);
-      } else {
-        console.log(`[Cooldown] Expired: streak=${streak}, waited ${(elapsed/60000).toFixed(1)}min of ${cooldownMins}min`);
       }
     }
   }
 
-  // ── 2. Side resolution — PRICE ASYMMETRY STRATEGY ────────────────
-  // Instead of following the model direction, buy the CHEAP side.
-  // At 30c entry, we only need 30% WR to break even. Payout asymmetry is the edge.
+  // ── 3. Side resolution — PRICE ASYMMETRY STRATEGY ───────────────
+  // Buy the CHEAP side. At 30c entry, only need 30% WR to break even.
   let effectiveSide = null;
   let sideInferred = false;
 
@@ -159,9 +139,8 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
   const upVal = isNum(polyUpPrice) ? (polyUpPrice > 1 ? polyUpPrice / 100 : polyUpPrice) : null;
   const downVal = isNum(polyDownPrice) ? (polyDownPrice > 1 ? polyDownPrice / 100 : polyDownPrice) : null;
 
-  // Price-based side selection: pick the cheaper side
-  const maxCheapEntry = config.maxCheapEntryPrice ?? 0.40;  // only buy below 40c
-  const minCheapEntry = config.minCheapEntryPrice ?? 0.20;  // dont buy below 20c (too unlikely)
+  const maxCheapEntry = config.maxCheapEntryPrice ?? 0.45;
+  const minCheapEntry = config.minCheapEntryPrice ?? 0.15;
 
   if (isNum(upVal) && isNum(downVal)) {
     const cheapSide = upVal <= downVal ? 'UP' : 'DOWN';
@@ -171,24 +150,10 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
       effectiveSide = cheapSide;
       sideInferred = true;
     }
-    // If neither side is in the cheap range, dont enter
-  }
-
-  // Model veto: if the model STRONGLY disagrees with our cheap side, skip
-  // This prevents buying cheap garbage — e.g. DOWN at 25c when BTC is clearly pumping
-  const modelVetoThreshold = config.modelVetoThreshold ?? 0.65;
-  if (effectiveSide) {
-    const oppProb = effectiveSide === 'UP' ? signals.modelDown : signals.modelUp;
-    if (isNum(oppProb) && oppProb >= modelVetoThreshold) {
-      blockers.push(`Model veto: ${effectiveSide === 'UP' ? 'DOWN' : 'UP'} at ${(oppProb * 100).toFixed(0)}% > ${(modelVetoThreshold * 100).toFixed(0)}% threshold`);
-      effectiveSide = null;
-    }
   }
 
   if (!effectiveSide) {
-    if (!blockers.some((b) => b.includes('Model veto'))) {
-      blockers.push(`No cheap side available (need price between ${(minCheapEntry * 100).toFixed(0)}-${(maxCheapEntry * 100).toFixed(0)}c)`);
-    }
+    blockers.push(`No cheap side available (need price between ${(minCheapEntry * 100).toFixed(0)}-${(maxCheapEntry * 100).toFixed(0)}c)`);
     return { blockers, effectiveSide: null, sideInferred };
   }
 
@@ -263,39 +228,7 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     blockers.push(`Too early (>${onlyEntryFinalMinutes}m left, waiting for final window)`);
   }
 
-  // ── 5. Candle warmup ───────────────────────────────────────────
-  const minCandles = config.minCandlesForEntry ?? 12;
-  if (candleCount < minCandles) {
-    blockers.push(`Warmup: candles ${candleCount}/${minCandles}`);
-  }
-
-  // ── 6. Indicator readiness ──────────────────────────────────────
-  const ind = signals.indicators ?? {};
-  const hasRsi = isNum(ind.rsiNow);
-  const hasVwap = isNum(ind.vwapNow);
-  const hasVwapSlope = isNum(ind.vwapSlope);
-  const hasMacd = isNum(ind.macd?.hist);
-  const hasHeiken = typeof ind.heikenColor === 'string' && ind.heikenColor.length > 0
-    && isNum(ind.heikenCount);
-  const indicatorsPopulated = hasRsi && hasVwap && hasVwapSlope && hasMacd && hasHeiken;
-
-  if (!indicatorsPopulated) {
-    blockers.push('Indicators not ready');
-  }
-
-  // ── 7. Cooldowns ────────────────────────────────────────────────
-  const lossCooldownSec = config.lossCooldownSeconds ?? 0;
-  const winCooldownSec = config.winCooldownSeconds ?? 0;
-  const now = Date.now();
-
-  if (lossCooldownSec > 0 && state.lastLossAtMs && (now - state.lastLossAtMs < lossCooldownSec * 1000)) {
-    blockers.push(`Loss cooldown (${lossCooldownSec}s)`);
-  }
-  if (winCooldownSec > 0 && state.lastWinAtMs && (now - state.lastWinAtMs < winCooldownSec * 1000)) {
-    blockers.push(`Win cooldown (${winCooldownSec}s)`);
-  }
-
-  // ── 8. One trade per market: skip rest of 5m window after any exit ──
+  // ── 5. One trade per market: skip rest of 5m window after any exit ──
   const marketSlug = signals.market?.slug;
   const oneTradePerMarket = config.oneTradePerMarket ?? true;
   // Clear skip only when the skipped market has actually settled
@@ -343,211 +276,7 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     }
   }
 
-  // ── 11. Weekend tightening state ────────────────────────────────
-  const weekendTightening = Boolean(config.weekendTighteningEnabled ?? true) && isWeekend;
-
-  // ── 12. Market quality: liquidity ──────────────────────────────
-  const liquidityNum = signals.market?.liquidityNum ?? null;
-  const effectiveMinLiquidity = weekendTightening
-    ? (config.weekendMinLiquidity ?? config.minLiquidity)
-    : (config.minLiquidity ?? 0);
-
-  const liquidityOk = isNum(liquidityNum) && liquidityNum > 0;
-  if (!liquidityOk) {
-    blockers.push('Market data sanity: liquidity missing/0');
-  } else if (liquidityNum < effectiveMinLiquidity) {
-    blockers.push(`Low liquidity (<${effectiveMinLiquidity})`);
-  }
-
-  // ── 13. Market quality: spread ─────────────────────────────────
-  const spreadUp = poly?.orderbook?.up?.spread;
-  const spreadDown = poly?.orderbook?.down?.spread;
-  const effectiveMaxSpread = weekendTightening
-    ? (config.weekendMaxSpread ?? config.maxSpread)
-    : config.maxSpread;
-
-  if ((isNum(spreadUp) && spreadUp > effectiveMaxSpread) ||
-      (isNum(spreadDown) && spreadDown > effectiveMaxSpread)) {
-    blockers.push('High spread');
-  }
-
-  // ── 14. Market quality: volume ─────────────────────────────────
-  const marketVolumeNum = signals.market?.volumeNum ?? null;
-  const minMarketVolumeNum = config.minMarketVolumeNum ?? 0;
-  if (isNum(marketVolumeNum) && minMarketVolumeNum > 0 && marketVolumeNum < minMarketVolumeNum) {
-    blockers.push(`Low market volume (<${minMarketVolumeNum})`);
-  }
-
-  // ── 15. BTC volume filters ─────────────────────────────────────
-  const volumeRecent = signals.indicators?.volumeRecent ?? null;
-  const volumeAvg = signals.indicators?.volumeAvg ?? null;
-  const minVolumeRecent = config.minVolumeRecent ?? 0;
-  const minVolumeRatio = config.minVolumeRatio ?? 0;
-
-  const isLowVolumeAbsolute = minVolumeRecent > 0 && isNum(volumeRecent) && volumeRecent < minVolumeRecent;
-  const isLowVolumeRelative = minVolumeRatio > 0 && isNum(volumeRecent) && isNum(volumeAvg)
-    && volumeRecent < volumeAvg * minVolumeRatio;
-  if (isLowVolumeAbsolute || isLowVolumeRelative) {
-    blockers.push('Low volume');
-  }
-
-  // ── 16. Confidence (model max prob) ────────────────────────────
-  const upP0 = isNum(signals.modelUp) ? signals.modelUp : null;
-  const downP0 = isNum(signals.modelDown) ? signals.modelDown : null;
-  const baseMinModelMaxProb = config.minModelMaxProb ?? 0;
-  const effectiveMinModelMaxProb = weekendTightening
-    ? (config.weekendMinModelMaxProb ?? baseMinModelMaxProb)
-    : baseMinModelMaxProb;
-
-  if (effectiveMinModelMaxProb > 0 && upP0 !== null && downP0 !== null) {
-    const m = Math.max(upP0, downP0);
-    if (m < effectiveMinModelMaxProb) {
-      blockers.push(`Low conviction (maxProb ${(m * 100).toFixed(1)}% < ${(effectiveMinModelMaxProb * 100).toFixed(1)}%)`);
-    }
-  }
-
-  // ── 17. Volatility (rangePct20 chop filter) ────────────────────
-  const rangePct20 = signals.indicators?.rangePct20 ?? null;
-  const baseMinRangePct20 = config.minRangePct20 ?? 0;
-  const effectiveMinRangePct20 = weekendTightening
-    ? (config.weekendMinRangePct20 ?? baseMinRangePct20)
-    : baseMinRangePct20;
-
-  if (isNum(rangePct20) && effectiveMinRangePct20 > 0 && rangePct20 < effectiveMinRangePct20) {
-    blockers.push(`Choppy (range20 ${(rangePct20 * 100).toFixed(2)}% < ${(effectiveMinRangePct20 * 100).toFixed(2)}%)`);
-  }
-
-  // ── 18. BTC spot impulse ───────────────────────────────────────
-  const minImpulse = config.minBtcImpulsePct1m ?? 0;
-  const spotDelta1mPct = signals.spot?.delta1mPct ?? null;
-
-  if (isNum(minImpulse) && minImpulse > 0) {
-    if (!(isNum(spotDelta1mPct))) {
-      blockers.push('Spot impulse unavailable');
-    } else if (Math.abs(spotDelta1mPct) < minImpulse) {
-      blockers.push(`Low impulse (spot1m ${(spotDelta1mPct * 100).toFixed(3)}% < ${(minImpulse * 100).toFixed(3)}%)`);
-    }
-  }
-
-  // ── 19. RSI regime filter ──────────────────────────────────────
-  const rsiNow = signals.indicators?.rsiNow ?? null;
-  const noTradeRsiMin = config.noTradeRsiMin;
-  const noTradeRsiMax = config.noTradeRsiMax;
-
-  if (isNum(rsiNow) && isNum(noTradeRsiMin) && isNum(noTradeRsiMax)) {
-    if (rsiNow >= noTradeRsiMin && rsiNow < noTradeRsiMax) {
-      blockers.push(`RSI in no-trade band (${rsiNow.toFixed(1)} in [${noTradeRsiMin},${noTradeRsiMax}))`);
-    }
-  }
-
-  // ── 19b. RSI overbought/oversold directional filter ─────────────
-  const noTradeRsiOverbought = config.noTradeRsiOverbought ?? 78;
-  const noTradeRsiOversold = config.noTradeRsiOversold ?? 22;
-
-  if (isNum(rsiNow) && effectiveSide === "UP" && rsiNow > noTradeRsiOverbought) {
-    blockers.push(`RSI overbought for UP entry (RSI ${rsiNow.toFixed(1)} > ${noTradeRsiOverbought})`);
-  }
-  if (isNum(rsiNow) && effectiveSide === "DOWN" && rsiNow < noTradeRsiOversold) {
-    blockers.push(`RSI oversold for DOWN entry (RSI ${rsiNow.toFixed(1)} < ${noTradeRsiOversold})`);
-  }
-
-  // ── 19c. RSI directional bias — align trade direction with momentum ──
-  // When RSI < 40, only allow DOWN (bearish momentum). When RSI > 60, only allow UP (bullish momentum).
-  // 234-trade data: RSI<40 UP entries had worst WR; RSI>60 UP entries had best.
-  const rsiBiasEnabled = config.rsiDirectionalBiasEnabled !== false;
-  const rsiBearishThreshold = config.rsiBearishThreshold ?? 40;
-  const rsiBullishThreshold = config.rsiBullishThreshold ?? 60;
-  if (rsiBiasEnabled && isNum(rsiNow)) {
-    if (rsiNow < rsiBearishThreshold && effectiveSide === "UP") {
-      blockers.push(`RSI bearish bias blocks UP (RSI ${rsiNow.toFixed(1)} < ${rsiBearishThreshold})`);
-    }
-    if (rsiNow > rsiBullishThreshold && effectiveSide === "DOWN") {
-      blockers.push(`RSI bullish bias blocks DOWN (RSI ${rsiNow.toFixed(1)} > ${rsiBullishThreshold})`);
-    }
-  }
-
-  // ── 20. Polymarket price bounds ────────────────────────────────
-  const maxPoly = config.maxPolyPrice ?? 0.98;
-
-  if (!isNum(currentPolyPrice) || currentPolyPrice < minPoly || currentPolyPrice > maxPoly) {
-    blockers.push(`Poly price out of bounds (${((currentPolyPrice ?? NaN) * 100).toFixed(2)}¢)`);
-  }
-
-  // ── 21. Entry price cap ────────────────────────────────────────
-  const maxEntryPx = config.maxEntryPolyPrice ?? null;
-  if (isNum(maxEntryPx) && isNum(currentPolyPrice) && currentPolyPrice > maxEntryPx) {
-    blockers.push(`Entry price too high (${(currentPolyPrice * 100).toFixed(2)}¢ > ${(maxEntryPx * 100).toFixed(2)}¢)`);
-  }
-
-  // ── 22. Opposite side sanity ───────────────────────────────────
-  const minOpp = config.minOppositePolyPrice ?? 0;
-  if (isNum(minOpp) && minOpp > 0) {
-    const oppSide = effectiveSide === 'UP' ? 'DOWN' : 'UP';
-    const oppPx = effectivePolyPrices[oppSide] ?? signals.polyPrices?.[oppSide] ?? null;
-    if (isNum(oppPx) && oppPx < minOpp) {
-      blockers.push(`Opposite price too low (${oppSide} ${(oppPx * 100).toFixed(2)}¢ < ${(minOpp * 100).toFixed(2)}¢)`);
-    }
-  }
-
-  // ── 22b. Heiken Ashi exhaustion filter ─────────────────────────
-  // Count 4-6 = trend exhaustion zone: 52 trades, 38% WR, -$35 (157-trade analysis).
-  // Count 2-3 is best (54% WR, +$112). Count 7+ = strong trend, allow.
-  const heikenExhaustionEnabled = config.heikenExhaustionFilterEnabled !== false;
-  const heikenExhaustionMin = config.heikenExhaustionMin ?? 4;
-  const heikenExhaustionMax = config.heikenExhaustionMax ?? 6;
-  if (heikenExhaustionEnabled && hasHeiken && isNum(ind.heikenCount)) {
-    if (ind.heikenCount >= heikenExhaustionMin && ind.heikenCount <= heikenExhaustionMax) {
-      blockers.push(`Heiken exhaustion (count ${ind.heikenCount}, range ${heikenExhaustionMin}-${heikenExhaustionMax})`);
-    }
-  }
-
-  // ── 22c. Require strong signal: model prob >80% OR edge >8% ──
-  // 60-80% prob with <8% edge: losing money. Need at least one strong signal.
-  const requireStrongSignal = config.requireStrongSignalEnabled !== false;
-  const strongProbThreshold = config.strongProbThreshold ?? 0.80;
-  const strongEdgeThreshold = config.strongEdgeThreshold ?? 0.08;
-  if (requireStrongSignal) {
-    const modelProb = effectiveSide === 'UP' ? signals.modelUp : signals.modelDown;
-    const edge = rec?.edge ?? 0;
-    const hasStrongProb = isNum(modelProb) && modelProb >= strongProbThreshold;
-    const hasStrongEdge = isNum(edge) && edge >= strongEdgeThreshold;
-    if (!hasStrongProb && !hasStrongEdge) {
-      blockers.push(`No strong signal (prob ${((modelProb ?? 0) * 100).toFixed(1)}% < ${(strongProbThreshold * 100)}%, edge ${((edge ?? 0) * 100).toFixed(1)}% < ${(strongEdgeThreshold * 100)}%)`);
-    }
-  }
-
-  // ── 23. Phase-based thresholds ─────────────────────────────────
-  const phase = rec?.phase;
-  if (phase && rec?.side) {
-    const { minProb, edgeThreshold } = computeEffectiveThresholds(
-      config, isWeekend, phase, sideInferred, strictRec,
-    );
-
-    const modelProb = effectiveSide === 'UP' ? signals.modelUp : signals.modelDown;
-    const edge = rec?.edge ?? 0;
-
-    if (isNum(modelProb) && modelProb < minProb) {
-      blockers.push(`Prob ${modelProb.toFixed(3)} < ${minProb}`);
-    }
-    if ((edge || 0) < edgeThreshold) {
-      blockers.push(`Edge ${(edge || 0).toFixed(3)} < ${edgeThreshold}`);
-    }
-  }
-
-  // ── 23b. Max Drawdown circuit breaker ─────────────────────────
-  // Block new trades if session drawdown exceeds threshold (e.g., 15% of starting balance).
-  // Prevents catastrophic loss spirals. Resets on manual re-enable or daily reset.
-  const mddPct = config.maxDrawdownPct ?? 0.15; // 15% of starting balance
-  if (mddPct > 0 && isNum(state.startingBalance) && state.startingBalance > 0) {
-    const currentBalance = isNum(state.currentBalance) ? state.currentBalance
-      : (state.startingBalance + (state.todayRealizedPnl ?? 0));
-    const drawdownPct = (state.startingBalance - currentBalance) / state.startingBalance;
-    if (drawdownPct >= mddPct) {
-      blockers.push(`Max drawdown breaker (${(drawdownPct * 100).toFixed(1)}% >= ${(mddPct * 100).toFixed(0)}% of $${state.startingBalance})`);
-    }
-  }
-
-  // ── 24. Circuit breaker (consecutive losses) ─────────────────
+  // ── 11. Circuit breaker (consecutive losses) ─────────────────
   const cbMaxLosses = config.circuitBreakerConsecutiveLosses ?? 0;
   const cbCooldownMs = config.circuitBreakerCooldownMs ?? 5 * 60_000;
 
@@ -558,24 +287,29 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     }
   }
 
-  // ── 25. Daily loss kill-switch (Phase 3: uses domain killSwitch module) ────
-  // Skip kill-switch in paper mode when paperKillSwitchEnabled is false (default: off for testing)
+  // ── 12. Max Drawdown circuit breaker ──────────────────────────
+  const mddPct = config.maxDrawdownPct ?? 0.15;
+  if (mddPct > 0 && isNum(state.startingBalance) && state.startingBalance > 0) {
+    const currentBalance = isNum(state.currentBalance) ? state.currentBalance
+      : (state.startingBalance + (state.todayRealizedPnl ?? 0));
+    const drawdownPct = (state.startingBalance - currentBalance) / state.startingBalance;
+    if (drawdownPct >= mddPct) {
+      blockers.push(`Max drawdown breaker (${(drawdownPct * 100).toFixed(1)}% >= ${(mddPct * 100).toFixed(0)}% of $${state.startingBalance})`);
+    }
+  }
+
+  // ── 13. Daily loss kill-switch ────────────────────────────────
   const paperKillSwitchDisabled = (config.paperKillSwitchEnabled === false) && (config._mode === 'paper');
   const maxDailyLossUsd = config.maxDailyLossUsd ?? null;
   if (!paperKillSwitchDisabled && isNum(maxDailyLossUsd) && maxDailyLossUsd > 0) {
-    // Use checkKillSwitch from TradingState if available (Phase 3 integration)
     if (typeof state.checkKillSwitch === 'function') {
       const ksResult = state.checkKillSwitch(maxDailyLossUsd, {
         overrideBufferPct: config.killSwitchOverrideBufferPct ?? 0.10,
       });
       if (ksResult.triggered) {
         blockers.push(`Daily loss kill-switch: ${ksResult.reason}`);
-      } else if (ksResult.overridden) {
-        // Override is active — trading allowed but log for awareness
-        // (no blocker added, just pass through)
       }
     } else if (isNum(state.todayRealizedPnl)) {
-      // Fallback for legacy TradingState without killSwitch integration
       if (state.todayRealizedPnl <= -Math.abs(maxDailyLossUsd)) {
         blockers.push(`Daily loss kill-switch hit ($${state.todayRealizedPnl.toFixed(2)} <= -$${Math.abs(maxDailyLossUsd).toFixed(2)})`);
       }

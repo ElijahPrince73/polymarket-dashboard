@@ -383,7 +383,7 @@ export const CONFIG = {
     // Buy the cheap side — at 30c entry, only need 30% WR to break even
     maxCheapEntryPrice: 0.45,   // max price to consider "cheap" (45c = need 45% WR)
     minCheapEntryPrice: 0.15,   // min price (below this = too unlikely to win)
-    modelVetoThreshold: 0.80,   // model must be <80% against our side, else veto
+    modelVetoThreshold: 1.01,   // disabled — price is the edge, not model prediction
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
     // rangePct20 = (max(close,last20) - min(close,last20)) / lastClose

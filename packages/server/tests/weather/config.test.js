@@ -53,7 +53,7 @@ describe("weather config", () => {
 
   it("keeps max slippage inside a sane range", () => {
     expect(MAX_SLIPPAGE).toBeGreaterThanOrEqual(0);
-    expect(MAX_SLIPPAGE).toBeLessThanOrEqual(0.10);
+    expect(MAX_SLIPPAGE).toBeLessThanOrEqual(0.15);
   });
 
   it("uses a positive minimum market volume filter", () => {

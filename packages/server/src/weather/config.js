@@ -430,13 +430,13 @@ export const MAX_PRICE = 0.85;
 export const MIN_ABS_MODEL_DIFF = 0.12; // Raised from 0.08 to 0.12 for higher confidence
 export const MIN_HOURS_TO_CLOSE = 3;
 export const MIN_MODEL_CONSENSUS = 4; // Require 4+ weather models to agree
-export const MIN_VOLUME = 500;
+export const MIN_VOLUME = 50; // Weather markets are niche — most buckets are $100-$500
 export const MAX_DAILY_EXPOSURE_PCT = 0.25;
 export const MAX_CITY_EXPOSURE_PCT = 0.04;
 export const STOP_DAILY_DD_PCT = 0.05;
 export const SIGMA_F = 2.0;
 export const SIGMA_C = 1.2;
-export const MAX_SLIPPAGE = 0.05;
+export const MAX_SLIPPAGE = 0.12; // Weather markets have wider spreads than crypto
 
 export const SEARCH_TERMS = ["temperature", "rain", "precipitation", "snow", "wind"];
 

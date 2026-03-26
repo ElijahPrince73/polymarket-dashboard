@@ -543,7 +543,7 @@ export const CONFIG_15M = (() => {
       (process.env.PAPER_TRADING_ENABLED_15M || 'true').toLowerCase() === 'true',
     exitBeforeEndMinutes: 2.0,
     noEntryFinalMinutes: 3.0,
-    onlyEntryFinalMinutes: 7.5,
+    onlyEntryFinalMinutes: 0,  // disabled — price-asymmetry strategy, enter anytime
     earlyCutSec: 90,
     stopLossGraceSec: 60,
     lossCooldownMinutes: 15,

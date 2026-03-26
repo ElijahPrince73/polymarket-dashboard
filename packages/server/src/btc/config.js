@@ -301,7 +301,10 @@ export const CONFIG = {
     ],
 
     // Legacy/unused
-    takeProfitPct: 0.15, // 15% of position — hardcoded, no env override
+    takeProfitPct: 0.15, // 15% of position (only used when tieredTakeProfitEnabled is true)
+    // Disabled: with price-asymmetry strategy, ride winners to settlement.
+    // At 30c entry, settlement win = $0.70/share. TP at 15% captures only 6% of potential.
+    tieredTakeProfitEnabled: false,
 
     // Dynamic exit: close when opposite side becomes more likely.
     // Example: if you're in UP and modelDown >= modelUp + exitFlipMargin AND modelDown >= exitFlipMinProb → exit.

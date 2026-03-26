@@ -381,9 +381,9 @@ export const CONFIG = {
 
     // Price-asymmetry entry strategy
     // Buy the cheap side — at 30c entry, only need 30% WR to break even
-    maxCheapEntryPrice: 0.40,   // max price to consider "cheap" (40c = need 40% WR)
-    minCheapEntryPrice: 0.20,   // min price (below this = too unlikely to win)
-    modelVetoThreshold: 0.65,   // model must be <65% against our side, else veto
+    maxCheapEntryPrice: 0.45,   // max price to consider "cheap" (45c = need 45% WR)
+    minCheapEntryPrice: 0.15,   // min price (below this = too unlikely to win)
+    modelVetoThreshold: 0.80,   // model must be <80% against our side, else veto
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
     // rangePct20 = (max(close,last20) - min(close,last20)) / lastClose

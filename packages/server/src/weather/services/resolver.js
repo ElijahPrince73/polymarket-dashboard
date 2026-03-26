@@ -52,10 +52,15 @@ export async function runResolver(dbApi = db) {
     const final = parseResolved(outcomes, prices);
     if (!final) continue;
 
-    // For neg-risk grouped events, individual market.closed can be false
-    // even when resolved. Trust the outcome prices (>= 0.95) as resolution signal.
-    const isClosed = market.closed || event.closed || final.confidence >= 0.95;
+    // Only resolve if the market is actually closed/settled.
+    // Do NOT use price >= 0.95 as a resolution signal — that's just live market consensus.
+    // Weather markets for tomorrow can have 95¢+ prices before settlement.
+    const isClosed = market.closed === true || event.closed === true;
     if (!isClosed) continue;
+
+    // Double-check: don't resolve if the event date hasn't passed yet
+    const eventEnd = event.endDate || event.end_date_iso;
+    if (eventEnd && new Date(eventEnd) > new Date()) continue;
 
     // In live mode, only resolve trades that had real orders placed.
     // In paper mode, resolve all trades (no order_id exists).

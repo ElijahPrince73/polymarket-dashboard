@@ -1,5 +1,64 @@
 # Weather Trading — Changelog
 
+## 2026-03-26 — Weather v2.0: Major Integration + Test Suite
+
+### Strategy Overhaul (March 20-26)
+Multiple strategy iterations tested during this period:
+1. **Old edge-based** (25% min edge, city tiers) → too restrictive, few trades
+2. **Forecast bucket YES** (best single bucket) → 7.7% WR, picked wrong market types
+3. **Inequality YES** (>60% model confidence) → no qualifying markets, tails too expensive
+4. **NO on tails** (bet against extremes) → 100% WR but $0.13/trade, unsustainable risk
+5. **Current: YES on range buckets** (top 3 near forecast, 5-50¢) → paper testing
+
+### Airport Station Coordinates (High Impact Fix)
+- Polymarket markets resolve on airport stations, not city centers
+- **NYC: KJFK → KLGA (LaGuardia)** — was forecasting for the wrong station entirely
+- Updated 14 cities: Paris, Tokyo, Toronto, Singapore, Sao Paulo, Wellington, Berlin, Madrid, Mumbai, Bangkok, Sydney, Mexico City
+- Difference between city center and airport can be 3-8°F — critical for 2°F range buckets
+
+### METAR Real-Time Observations
+- New `fetchMetar(station)` fetches live airport weather from aviationweather.gov
+- Free API, no key required
+- Blended into forecasts with 2:1 weight (observation vs model) for same-day markets
+- Significantly improves accuracy when trading today's markets
+
+### Dynamic Sigma Per City
+- Replaced static FORECAST_SIGMA=3 with per-city defaults
+- US cities (°F): σ=2.0 | International cities (°C): σ=1.2
+- Calibration table can override per-city for learned accuracy
+- Added `unit` field ("F"/"C") to every city in config
+
+### Slippage Filter
+- MAX_SLIPPAGE=0.05 — skips markets where bid-ask spread exceeds 5%
+- Prevents entering on illiquid markets with poor execution prices
+
+### Test Suite (27 tests, all passing)
+- **vitest** framework (ESM compatible)
+- `config.test.js` — city fields, ICAO codes, coordinates, units
+- `utils.test.js` — parseRangeC, parseInequalityC, normalCdf, detectMarketType
+- `trader.test.js` — Kelly sizing, nextDay, price filters, sigma selection, slippage
+- `discovery.test.js` — fetchMetar, forecastHourlyBlended, clobPrice
+- `resolver.test.js` — PnL calculations, paper vs live trade resolution
+- Run: `cd packages/server && npm test`
+
+### Other Fixes (March 20-26)
+- Fixed @heroicons/react missing dependency (inline SVG)
+- Fixed live-positions enrichment (condition_id fallback)
+- Restricted trading to next-day markets only
+- Removed stop-loss (Half-Kelly handles downside)
+- Disabled monitor (was fighting NO-on-tails strategy)
+- Fixed dedup at question level (prevented duplicate trades)
+- Fixed resolver for paper trades (no order_id required)
+- Added paper trades section to dashboard UI
+- Added /reset-trades and /dedup-trades endpoints
+- Daily stop bypass for strategy transition days
+
+### Reference
+- Inspired by: https://github.com/alteregoeth-ai/weatherbot
+- Key insight: airport coordinates and METAR observations
+
+---
+
 ## 2026-03-20 — Weather v1.2: City Detail Pages + Live Position Fix
 
 ### City Detail Pages (`/weather/{city}`)

@@ -37,7 +37,7 @@ vi.mock("../../src/weather/config.js", () => ({
   MAX_DAILY_EXPOSURE_PCT: 0.25,
   MIN_HOURS_TO_CLOSE: 3,
   MIN_MODEL_CONSENSUS: 1,
-  MIN_VOLUME: 2000,
+  MIN_VOLUME: 500,
   SIGMA_C: 1.2,
   SIGMA_F: 2.0,
   STOP_DAILY_DD_PCT: 0.05,

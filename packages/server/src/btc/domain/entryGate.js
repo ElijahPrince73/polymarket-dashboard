@@ -147,39 +147,48 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     }
   }
 
-  // ── 2. Side resolution ─────────────────────────────────────────
-  let effectiveSide = rec?.side ?? null;
+  // ── 2. Side resolution — PRICE ASYMMETRY STRATEGY ────────────────
+  // Instead of following the model direction, buy the CHEAP side.
+  // At 30c entry, we only need 30% WR to break even. Payout asymmetry is the edge.
+  let effectiveSide = null;
   let sideInferred = false;
 
-  // Market-price override: if one side is at minPolyPrice (e.g., 85¢+),
-  // pick that side regardless of what the model says. The market knows best.
   const polyUpPrice = signals.polyPricesCents?.UP ?? (signals.polyMarketSnapshot?.prices?.up ?? null);
   const polyDownPrice = signals.polyPricesCents?.DOWN ?? (signals.polyMarketSnapshot?.prices?.down ?? null);
-  const minPoly = config.minPolyPrice ?? 0.35;
-  if (minPoly >= 0.70 && isNum(polyUpPrice) && isNum(polyDownPrice)) {
-    // High minPolyPrice = market-confidence strategy. Pick the high side.
-    const upVal = polyUpPrice > 1 ? polyUpPrice / 100 : polyUpPrice; // handle cents vs decimal
-    const downVal = polyDownPrice > 1 ? polyDownPrice / 100 : polyDownPrice;
-    if (upVal >= minPoly && upVal > downVal) {
-      effectiveSide = 'UP';
-      sideInferred = true;
-    } else if (downVal >= minPoly && downVal > upVal) {
-      effectiveSide = 'DOWN';
+
+  const upVal = isNum(polyUpPrice) ? (polyUpPrice > 1 ? polyUpPrice / 100 : polyUpPrice) : null;
+  const downVal = isNum(polyDownPrice) ? (polyDownPrice > 1 ? polyDownPrice / 100 : polyDownPrice) : null;
+
+  // Price-based side selection: pick the cheaper side
+  const maxCheapEntry = config.maxCheapEntryPrice ?? 0.40;  // only buy below 40c
+  const minCheapEntry = config.minCheapEntryPrice ?? 0.20;  // dont buy below 20c (too unlikely)
+
+  if (isNum(upVal) && isNum(downVal)) {
+    const cheapSide = upVal <= downVal ? 'UP' : 'DOWN';
+    const cheapPrice = cheapSide === 'UP' ? upVal : downVal;
+
+    if (cheapPrice >= minCheapEntry && cheapPrice <= maxCheapEntry) {
+      effectiveSide = cheapSide;
       sideInferred = true;
     }
+    // If neither side is in the cheap range, dont enter
   }
 
-  if (!effectiveSide && !strictRec) {
-    const upP = isNum(signals.modelUp) ? signals.modelUp : null;
-    const downP = isNum(signals.modelDown) ? signals.modelDown : null;
-    if (upP !== null && downP !== null) {
-      effectiveSide = upP >= downP ? 'UP' : 'DOWN';
-      sideInferred = true;
+  // Model veto: if the model STRONGLY disagrees with our cheap side, skip
+  // This prevents buying cheap garbage — e.g. DOWN at 25c when BTC is clearly pumping
+  const modelVetoThreshold = config.modelVetoThreshold ?? 0.65;
+  if (effectiveSide) {
+    const oppProb = effectiveSide === 'UP' ? signals.modelDown : signals.modelUp;
+    if (isNum(oppProb) && oppProb >= modelVetoThreshold) {
+      blockers.push(`Model veto: ${effectiveSide === 'UP' ? 'DOWN' : 'UP'} at ${(oppProb * 100).toFixed(0)}% > ${(modelVetoThreshold * 100).toFixed(0)}% threshold`);
+      effectiveSide = null;
     }
   }
 
   if (!effectiveSide) {
-    blockers.push('Missing side');
+    if (!blockers.some((b) => b.includes('Model veto'))) {
+      blockers.push(`No cheap side available (need price between ${(minCheapEntry * 100).toFixed(0)}-${(maxCheapEntry * 100).toFixed(0)}c)`);
+    }
     return { blockers, effectiveSide: null, sideInferred };
   }
 

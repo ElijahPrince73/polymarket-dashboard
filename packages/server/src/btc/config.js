@@ -371,14 +371,16 @@ export const CONFIG = {
     // Polymarket price sanity (dollars, 0..1). Prevent "0.00" entries.
     // Polymarket prices are decimal (0–1): 0.56 = 56¢.
     // Avoid dust prices where spread/tick noise dominates.
-    // Raised from 0.35 to 0.40: entries below 40¢ had 29% WR and -$107 PnL across 38 trades (234-trade analysis).
-    // Widened for high-frequency: allow more price ranges
-    // Only enter when one side is 70¢-90¢ (clear direction but not too expensive)
-    minPolyPrice: 0.40, // skip low-conviction entries — hardcoded
+    minPolyPrice: 0.15,
     maxPolyPrice: 0.95,
-    // Tightened: above 70¢ the upside is capped and risk is high
-    maxEntryPolyPrice: 0.60, // v2.1 data: 60-75¢ was 38% WR/-$40. v1.0.7 was 0.65 — hardcoded
+    maxEntryPolyPrice: 0.45,
     minOppositePolyPrice: 0.01,
+
+    // Price-asymmetry entry strategy
+    // Buy the cheap side — at 30c entry, only need 30% WR to break even
+    maxCheapEntryPrice: 0.40,   // max price to consider "cheap" (40c = need 40% WR)
+    minCheapEntryPrice: 0.20,   // min price (below this = too unlikely to win)
+    modelVetoThreshold: 0.65,   // model must be <65% against our side, else veto
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
     // rangePct20 = (max(close,last20) - min(close,last20)) / lastClose

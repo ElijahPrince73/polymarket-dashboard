@@ -203,15 +203,9 @@ export async function runTradeDiscovery(dbApi = db) {
         if (yesIdx < 0) continue;
 
         let yesPrice = Number.parseFloat(outcomePrices[yesIdx]);
-        if (tokenIds[yesIdx]) {
-          try { yesPrice = await clobPrice(tokenIds[yesIdx]); } catch {}
-        }
         if (!Number.isFinite(yesPrice) || yesPrice <= 0) continue;
 
         let noPrice = Number.parseFloat(outcomePrices[noIdx]);
-        if (noIdx >= 0 && tokenIds[noIdx]) {
-          try { noPrice = await clobPrice(tokenIds[noIdx]); } catch {}
-        }
         const spread = Number.isFinite(noPrice) ? Math.abs(1 - yesPrice - noPrice) : 0;
         if (spread > MAX_SLIPPAGE) {
           console.log(

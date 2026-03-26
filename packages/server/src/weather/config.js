@@ -438,6 +438,6 @@ export const SIGMA_F = 2.0;
 export const SIGMA_C = 1.2;
 export const MAX_SLIPPAGE = 0.12; // Weather markets have wider spreads than crypto
 
-export const SEARCH_TERMS = ["temperature", "rain", "precipitation", "snow", "wind"];
+export const SEARCH_TERMS = ["highest temperature"]; // Only trade temp_max markets — fewer API calls
 
 export const DB_PATH = path.resolve(process.cwd(), "data", "trades.db");

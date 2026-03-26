@@ -254,7 +254,7 @@ describe("weather trader", () => {
             question: "Will Dallas highest temperature be between 78-79°F on March 25?",
             closed: false,
             active: true,
-            volume: 1500,
+            volume: 300,
             outcomes: JSON.stringify(["Yes", "No"]),
             outcomePrices: JSON.stringify([0.2, 0.8]),
             clobTokenIds: JSON.stringify([]),

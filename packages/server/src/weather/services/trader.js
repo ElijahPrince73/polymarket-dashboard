@@ -189,15 +189,11 @@ export async function runTradeDiscovery(dbApi = db) {
         const range = parseRangeC(question);
         if (!range) continue; // Only range markets (e.g. "78-79°F")
 
-        // Model probability via normal CDF over the range
+        // Model probability via normal CDF over the range (for tracking/logging)
         const z1 = (range.lowC - forecastTemp) / sigma;
         const z2 = (range.highC - forecastTemp) / sigma;
         const rawProb = Math.max(0, normalCdf(z2) - normalCdf(z1));
         const modelProb = Math.max(0, Math.min(1, rawProb + bias));
-
-        // Model veto: only skip if model assigns < 1% probability (essentially impossible)
-        // Price-asymmetry strategy: buy cheap side, model is a veto not the signal
-        if (modelProb < 0.01) continue;
 
         const outcomes = parseJsonArray(market.outcomes);
         const tokenIds = parseJsonArray(market.clobTokenIds);
@@ -224,12 +220,17 @@ export async function runTradeDiscovery(dbApi = db) {
           continue;
         }
 
-        // Price filters
+        // Price-asymmetry entry: buy any range bucket in the cheap zone
+        // The edge IS the price — at 20¢ entry, need only 20% WR to break even
         if (yesPrice < 0.05) continue;  // Too cheap — likely resolved or illiquid
-        if (yesPrice > 0.50) continue;  // Too expensive — poor risk/reward
+        if (yesPrice > 0.40) continue;  // Too expensive — poor risk/reward for asymmetry
 
-        // Half-Kelly sizing
-        const p = modelProb;
+        // Price-based Kelly sizing: use yesPrice as implied probability
+        // At 20¢, market implies 20% chance. If we think it's even slightly better, we have edge.
+        // Use a conservative edge estimate: assume our true prob = yesPrice + small edge
+        const impliedProb = yesPrice;
+        const edgeEstimate = Math.min(0.10, impliedProb * 0.25); // 25% edge over market, capped at 10%
+        const p = impliedProb + edgeEstimate;
         const payoff = (1 / yesPrice) - 1;
         const kelly = (p * payoff - (1 - p)) / payoff;
         const sizePct = (kelly / 2) * kellyMultiplier;
@@ -243,12 +244,12 @@ export async function runTradeDiscovery(dbApi = db) {
           yesPrice,
           tokenId: tokenIds[yesIdx],
           sizePct,
-          edge: modelProb - yesPrice,
+          edge: edgeEstimate,
         });
       }
 
-      // Sort by model probability (highest first) and take top 3
-      rangeCandidates.sort((a, b) => b.modelProb - a.modelProb);
+      // Sort by payoff potential (cheapest first — best risk/reward)
+      rangeCandidates.sort((a, b) => a.yesPrice - b.yesPrice);
       const topBuckets = rangeCandidates.slice(0, 3);
 
       for (const bucket of topBuckets) {
@@ -284,7 +285,8 @@ export async function runTradeDiscovery(dbApi = db) {
           status: "OPEN",
           result: "PENDING",
           notes:
-            `${blendedNote} | RANGE_BUCKET | Kelly=${bucket.sizePct.toFixed(4)} ` +
+            `${blendedNote} | PRICE_ASYM | price=${bucket.yesPrice} edge=${bucket.edge.toFixed(4)} ` +
+            `Kelly=${bucket.sizePct.toFixed(4)} | modelProb=${bucket.modelProb.toFixed(4)} ` +
             `| AvgErr=${accuracy.avgError ?? "n/a"} | KellyMult=${kellyMultiplier}`,
           token_id: bucket.tokenId ?? null,
           condition_id: bucket.market.conditionId ?? null,

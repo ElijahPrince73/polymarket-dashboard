@@ -437,9 +437,8 @@ export const CONFIG = {
     // Allow entries closer to settlement
     noEntryFinalMinutes: 1.5,
     // Only enter in the final X minutes of the market. 0 = disabled.
-    // Late-entry strategy: wait for market to show clear direction.
-    // Widened from 1.5 to 2.5 — more time for price to reach 70¢+ in the window
-    onlyEntryFinalMinutes: 2.5,
+    // Disabled: price-asymmetry strategy doesn't need timing gate — price IS the filter.
+    onlyEntryFinalMinutes: 0,
 
     // Require enough 1m candles before allowing entries (helps avoid 50/50 startup)
     minCandlesForEntry: 1,

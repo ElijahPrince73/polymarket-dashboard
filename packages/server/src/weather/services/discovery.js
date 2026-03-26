@@ -24,6 +24,19 @@ export async function clobPrice(tokenId) {
   return parseFloat(data.price);
 }
 
+export async function fetchMetar(station) {
+  try {
+    const url = `https://aviationweather.gov/api/data/metar?ids=${station}&format=json`;
+    const data = await fetchJson(url);
+    if (Array.isArray(data) && data.length > 0 && data[0].temp != null) {
+      return { tempC: parseFloat(data[0].temp), raw: data[0] };
+    }
+  } catch (e) {
+    console.warn(`[METAR] ${station}: ${e.message}`);
+  }
+  return null;
+}
+
 export async function forecastDaily(lat, lon, tz) {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
@@ -70,7 +83,7 @@ function dayTempsFromHourly(hourly, dateStr) {
   return { tmax: Math.max(...temps), tmin: Math.min(...temps) };
 }
 
-export async function forecastHourlyBlended(lat, lon, tz, models, targetDate = null) {
+export async function forecastHourlyBlended(lat, lon, tz, models, targetDate = null, metar = null) {
   const dateStr = targetDate || getLocalDateString(tz);
 
   // models can be an array (legacy) or { shortRange: [...], global: [...] }
@@ -99,22 +112,32 @@ export async function forecastHourlyBlended(lat, lon, tz, models, targetDate = n
   });
 
   const settled = await Promise.allSettled(modelCalls);
-  const successful = settled.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  const successful = settled
+    .filter((r) => r.status === "fulfilled" && r.value)
+    .map((r) => r.value);
   if (successful.length) {
-    return {
+    const result = {
       tmax: median(successful.map((x) => x.tmax)),
       tmin: median(successful.map((x) => x.tmin)),
       modelsUsed: successful.length,
     };
+    if (metar && metar.tempC != null && dateStr === getLocalDateString(tz)) {
+      result.tmax = (metar.tempC * 2 + result.tmax) / 3;
+    }
+    return result;
   }
 
   const fallback = await forecastHourly(lat, lon, tz);
   const fallbackDay = dayTempsFromHourly(fallback?.hourly, dateStr);
   if (!fallbackDay) return null;
-  return {
+  const result = {
     ...fallbackDay,
     modelsUsed: 0,
   };
+  if (metar && metar.tempC != null && dateStr === getLocalDateString(tz)) {
+    result.tmax = (metar.tempC * 2 + result.tmax) / 3;
+  }
+  return result;
 }
 
 export function pickDailyForDate(daily, dateStr) {

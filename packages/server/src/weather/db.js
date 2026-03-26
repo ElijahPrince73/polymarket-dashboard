@@ -233,11 +233,18 @@ export async function getCalibration(city, marketType) {
   return data;
 }
 
-export async function upsertCalibration(city, marketType, bias, updatedAt = new Date().toISOString()) {
-  const { error } = await supabase.from("weather_calibration").upsert(
-    { city, market_type: marketType, bias, updated_at: updatedAt },
-    { onConflict: "city,market_type" }
-  );
+export async function upsertCalibration(
+  city,
+  marketType,
+  bias,
+  updatedAt = new Date().toISOString(),
+  sigma = undefined
+) {
+  const row = { city, market_type: marketType, bias, updated_at: updatedAt };
+  if (sigma !== undefined) row.sigma = sigma;
+  const { error } = await supabase
+    .from("weather_calibration")
+    .upsert(row, { onConflict: "city,market_type" });
   if (error) throw new Error(`upsertCalibration failed: ${error.message}`);
 }
 

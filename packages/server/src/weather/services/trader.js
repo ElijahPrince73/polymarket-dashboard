@@ -1,17 +1,20 @@
 import {
-  BASE_BANKROLL,
   CITIES,
   MODEL_CANDIDATES,
+  MAX_SLIPPAGE,
   MAX_CITY_EXPOSURE_PCT,
   MAX_DAILY_EXPOSURE_PCT,
   MIN_HOURS_TO_CLOSE,
   MIN_MODEL_CONSENSUS,
+  SIGMA_C,
+  SIGMA_F,
   STOP_DAILY_DD_PCT,
+  BASE_BANKROLL,
 } from "../config.js";
 import db from "../db.js";
 import {
-  applyCalibration,
   clobPrice,
+  fetchMetar,
   forecastDaily,
   forecastHourlyBlended,
   pickDailyForDate,
@@ -21,10 +24,8 @@ import { getBalance as getLiveBalance, isLiveMode, placeBuyOrder } from "./excha
 import {
   detectMarketType,
   fmtDateInTz,
-  FORECAST_SIGMA,
   normalCdf,
   parseDateFromQuestion,
-  parseInequalityC,
   parseRangeC,
 } from "../utils.js";
 
@@ -76,10 +77,18 @@ export async function runTradeDiscovery(dbApi = db) {
   for (const city of CITIES) {
     const localDate = fmtDateInTz(city.tz);
     const tomorrowDate = nextDay(localDate);
-    const [daily, blendedTemps] = await Promise.all([
+    const [daily, metar] = await Promise.all([
       forecastDaily(city.lat, city.lon, city.tz),
-      forecastHourlyBlended(city.lat, city.lon, city.tz, MODEL_CANDIDATES[city.name] ?? []),
+      fetchMetar(city.station),
     ]);
+    const blendedTemps = await forecastHourlyBlended(
+      city.lat,
+      city.lon,
+      city.tz,
+      MODEL_CANDIDATES[city.name] ?? [],
+      localDate,
+      metar
+    );
     const day = pickDailyForDate(daily.daily, localDate);
     if (!day && !blendedTemps) continue;
 
@@ -123,13 +132,17 @@ export async function runTradeDiscovery(dbApi = db) {
       const type = detectMarketType(tempMarkets[0].question);
       const forecastTemp = type === "temp_max" ? dayUse.tmax : dayUse.tmin;
       if (forecastTemp == null) continue;
+      const defaultSigma = city.unit === "F" ? SIGMA_F : SIGMA_C;
+      const calRow = await dbApi.getCalibration(city.name, type);
+      const sigma = calRow?.sigma || defaultSigma;
+      const bias = calRow?.bias ?? 0;
 
       const dateStr = parseDateFromQuestion(tempMarkets[0].question, city.tz) || eventDate;
       if (dateStr && dateStr < localDate) continue;
 
       const blendedNote = type === "temp_max"
-        ? `Forecast tmax=${dayUse.tmax}C σ=${FORECAST_SIGMA} (Blended ${blendedTemps?.modelsUsed ?? 0} models)`
-        : `Forecast tmin=${dayUse.tmin}C σ=${FORECAST_SIGMA} (Blended ${blendedTemps?.modelsUsed ?? 0} models)`;
+        ? `Forecast tmax=${dayUse.tmax}C σ=${sigma} (Blended ${blendedTemps?.modelsUsed ?? 0} models${metar?.tempC != null ? " + METAR" : ""})`
+        : `Forecast tmin=${dayUse.tmin}C σ=${sigma} (Blended ${blendedTemps?.modelsUsed ?? 0} models${metar?.tempC != null ? " + METAR" : ""})`;
 
       // === RANGE BUCKET STRATEGY ===
       // Buy YES on the 2-3 range buckets closest to the forecast temperature.
@@ -144,10 +157,10 @@ export async function runTradeDiscovery(dbApi = db) {
         if (!range) continue; // Only range markets (e.g. "78-79°F")
 
         // Model probability via normal CDF over the range
-        const z1 = (range.lowC - forecastTemp) / FORECAST_SIGMA;
-        const z2 = (range.highC - forecastTemp) / FORECAST_SIGMA;
+        const z1 = (range.lowC - forecastTemp) / sigma;
+        const z2 = (range.highC - forecastTemp) / sigma;
         const rawProb = Math.max(0, normalCdf(z2) - normalCdf(z1));
-        const modelProb = applyCalibration(city.name, type, rawProb);
+        const modelProb = Math.max(0, Math.min(1, rawProb + bias));
 
         // Only consider buckets with meaningful probability (>15%)
         if (modelProb < 0.15) continue;
@@ -156,6 +169,7 @@ export async function runTradeDiscovery(dbApi = db) {
         const tokenIds = parseJsonArray(market.clobTokenIds);
         const outcomePrices = parseJsonArray(market.outcomePrices);
         const yesIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "yes");
+        const noIdx = outcomes.findIndex((o) => String(o).toLowerCase() === "no");
         if (yesIdx < 0) continue;
 
         let yesPrice = Number.parseFloat(outcomePrices[yesIdx]);
@@ -163,6 +177,18 @@ export async function runTradeDiscovery(dbApi = db) {
           try { yesPrice = await clobPrice(tokenIds[yesIdx]); } catch {}
         }
         if (!Number.isFinite(yesPrice) || yesPrice <= 0) continue;
+
+        let noPrice = Number.parseFloat(outcomePrices[noIdx]);
+        if (noIdx >= 0 && tokenIds[noIdx]) {
+          try { noPrice = await clobPrice(tokenIds[noIdx]); } catch {}
+        }
+        const spread = Number.isFinite(noPrice) ? Math.abs(1 - yesPrice - noPrice) : 0;
+        if (spread > MAX_SLIPPAGE) {
+          console.log(
+            `[TRADER] Skipping ${city.name}: spread too wide (${spread.toFixed(3)}) | ${question.slice(0, 50)}`
+          );
+          continue;
+        }
 
         // Price filters
         if (yesPrice < 0.05) continue;  // Too cheap — likely resolved or illiquid

@@ -195,8 +195,9 @@ export async function runTradeDiscovery(dbApi = db) {
         const rawProb = Math.max(0, normalCdf(z2) - normalCdf(z1));
         const modelProb = Math.max(0, Math.min(1, rawProb + bias));
 
-        // Only consider buckets with meaningful probability (>15%)
-        if (modelProb < 0.15) continue;
+        // Model veto: only skip if model assigns < 1% probability (essentially impossible)
+        // Price-asymmetry strategy: buy cheap side, model is a veto not the signal
+        if (modelProb < 0.01) continue;
 
         const outcomes = parseJsonArray(market.outcomes);
         const tokenIds = parseJsonArray(market.clobTokenIds);

@@ -157,7 +157,36 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     return { blockers, effectiveSide: null, sideInferred };
   }
 
-  // ── 3. Polymarket price resolution ──────────────────────────────
+  // ── 3b. Rec gating (market quality filter) ──────────────────────
+  // When enabled, only enter when the signal engine says ENTER.
+  // This filters out stale data, dead markets, and low-quality conditions.
+  const recGatingEnabled = config.recGatingEnabled ?? false;
+  if (recGatingEnabled) {
+    const rec = signals?.rec;
+    if (rec?.action !== 'ENTER') {
+      blockers.push(`Rec=${rec?.action || 'NONE'} (market quality filter)`);
+    }
+  }
+
+  // ── 3c. RSI directional bias ────────────────────────────────────
+  // When enabled, align cheap side with momentum direction.
+  // RSI < bearish threshold → only allow DOWN. RSI > bullish → only allow UP.
+  const rsiBiasEnabled = config.rsiBiasEnabled ?? false;
+  if (rsiBiasEnabled) {
+    const rsiNow = signals.indicators?.rsiNow ?? null;
+    const rsiBearish = config.rsiBearishThreshold ?? 40;
+    const rsiBullish = config.rsiBullishThreshold ?? 60;
+    if (isNum(rsiNow)) {
+      if (rsiNow < rsiBearish && effectiveSide === 'UP') {
+        blockers.push(`RSI bearish bias blocks UP (RSI ${rsiNow.toFixed(1)} < ${rsiBearish})`);
+      }
+      if (rsiNow > rsiBullish && effectiveSide === 'DOWN') {
+        blockers.push(`RSI bullish bias blocks DOWN (RSI ${rsiNow.toFixed(1)} > ${rsiBullish})`);
+      }
+    }
+  }
+
+  // ── 4. Polymarket price resolution ──────────────────────────────
   const poly = signals.polyMarketSnapshot;
   const rawUpC = signals.polyPricesCents?.UP ?? null;
   const rawDownC = signals.polyPricesCents?.DOWN ?? null;

@@ -382,7 +382,7 @@ export const CONFIG = {
     // Price-asymmetry entry strategy
     // Buy the cheap side — at 30c entry, only need 30% WR to break even
     maxCheapEntryPrice: 0.45,   // max price to consider "cheap" (45c = need 45% WR)
-    minCheapEntryPrice: 0.15,   // min price (below this = too unlikely to win)
+    minCheapEntryPrice: 0.25,   // min price (below 25c = market already decided, cheap side won't recover in 5m)
     modelVetoThreshold: 1.01,   // disabled — price is the edge, not model prediction
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
@@ -544,6 +544,7 @@ export const CONFIG_15M = (() => {
     exitBeforeEndMinutes: 2.0,
     noEntryFinalMinutes: 3.0,
     onlyEntryFinalMinutes: 0,  // disabled — price-asymmetry strategy, enter anytime
+    minCheapEntryPrice: 0.15,  // 15m has more room for reversals, keep 15c floor
     earlyCutSec: 90,
     stopLossGraceSec: 60,
     lossCooldownMinutes: 15,

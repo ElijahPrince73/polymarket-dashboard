@@ -112,7 +112,9 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
 
   // ── 2. Escalating Loss Cooldown ─────────────────────────────────
   const cooldownEnabled = config.lossCooldownEnabled ?? true;
-  if (cooldownEnabled && state) {
+  const isPaperMode = config._mode === 'paper';
+  // Skip in paper mode - risk controls are live-only
+  if (!isPaperMode && cooldownEnabled && state) {
     const lastTrade = state.lastClosedTrade ?? null;
     const streak = state.consecutiveLosses ?? 0;
     if (lastTrade && (lastTrade.pnl ?? 0) <= 0 && streak > 0) {
@@ -309,7 +311,8 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
   const cbMaxLosses = config.circuitBreakerConsecutiveLosses ?? 0;
   const cbCooldownMs = config.circuitBreakerCooldownMs ?? 5 * 60_000;
 
-  if (cbMaxLosses > 0 && typeof state.checkCircuitBreaker === 'function') {
+  // Skip in paper mode - risk controls are live-only
+  if (!isPaperMode && cbMaxLosses > 0 && typeof state.checkCircuitBreaker === 'function') {
     const cb = state.checkCircuitBreaker(cbMaxLosses, cbCooldownMs);
     if (cb.tripped) {
       blockers.push(`Circuit breaker (${cbMaxLosses} losses, ${(cb.remaining / 1000).toFixed(0)}s left)`);
@@ -318,7 +321,8 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
 
   // ── 12. Max Drawdown circuit breaker ──────────────────────────
   const mddPct = config.maxDrawdownPct ?? 0.15;
-  if (mddPct > 0 && isNum(state.startingBalance) && state.startingBalance > 0) {
+  // Skip in paper mode - risk controls are live-only
+  if (!isPaperMode && mddPct > 0 && isNum(state.startingBalance) && state.startingBalance > 0) {
     const currentBalance = isNum(state.currentBalance) ? state.currentBalance
       : (state.startingBalance + (state.todayRealizedPnl ?? 0));
     const drawdownPct = (state.startingBalance - currentBalance) / state.startingBalance;

@@ -61,6 +61,7 @@ import { installGracefulShutdown } from "./infrastructure/deployment/gracefulShu
 import { checkSettlements, recordPriceSnapshot } from "./services/settlementService.js";
 import { checkAndRedeem } from "./services/redeemService.js";
 import { repairZeroPnlTrades, startRepairInterval } from "./services/tradeRepairService.js";
+import { recordTick } from "./infrastructure/persistence/tickRecorder.js";
 
 // Phase 5: Startup validation
 import { logEnvValidation } from "./infrastructure/deployment/envValidation.js";
@@ -667,6 +668,7 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
     }
 
     const signalsForTrader = buildSignals({ rec, klines1m, polySnapshot, polyPrices, marketUp, marketDown, timeLeftMin, timeAware: activeTimeAware, indicatorsData, spotNow, spotDelta1mPct, candleMeta });
+    recordTick(signalsForTrader, is15m ? '15m' : '5m');
 
     globalThis[statusKey] = {
       marketSlug: polySnapshot.ok ? (polySnapshot.market?.slug ?? null) : null,

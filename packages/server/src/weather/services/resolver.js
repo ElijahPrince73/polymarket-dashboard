@@ -52,15 +52,15 @@ export async function runResolver(dbApi = db) {
     const final = parseResolved(outcomes, prices);
     if (!final) continue;
 
-    // Only resolve if the market is actually closed/settled.
-    // Do NOT use price >= 0.95 as a resolution signal — that's just live market consensus.
-    // Weather markets for tomorrow can have 95¢+ prices before settlement.
-    const isClosed = market.closed === true || event.closed === true;
-    if (!isClosed) continue;
-
-    // Double-check: don't resolve if the event date hasn't passed yet
+    // Resolution logic:
+    // 1. If market or event is explicitly closed → resolve
+    // 2. If price >= 0.95 AND event endDate has passed → resolve (Polymarket is slow to flip closed)
+    // 3. Do NOT resolve on price alone if endDate hasn't passed (that's just live market consensus)
     const eventEnd = event.endDate || event.end_date_iso;
-    if (eventEnd && new Date(eventEnd) > new Date()) continue;
+    const endDatePassed = eventEnd ? new Date(eventEnd) < new Date() : false;
+    const explicitlyClosed = market.closed === true || event.closed === true;
+    const priceResolved = final.confidence >= 0.95 && endDatePassed;
+    if (!explicitlyClosed && !priceResolved) continue;
 
     // In live mode, only resolve trades that had real orders placed.
     // In paper mode, resolve all trades (no order_id exists).

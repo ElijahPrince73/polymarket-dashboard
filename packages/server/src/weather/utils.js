@@ -125,10 +125,17 @@ export function parseThresholdC(question) {
 }
 
 export function parseRangeC(question) {
+  // Range buckets: "between 78-79°F" or "between 10-11°C"
   let m = String(question).match(/(-?\d+)\s*[-–]\s*(-?\d+)\s*°?C/i);
   if (m) return { lowC: parseFloat(m[1]), highC: parseFloat(m[2]), unit: "C" };
   m = String(question).match(/(-?\d+)\s*[-–]\s*(-?\d+)\s*°?F/i);
   if (m) return { lowC: fToC(parseFloat(m[1])), highC: fToC(parseFloat(m[2])), unit: "F" };
+  // Single-degree buckets: "be 9°C on" (international markets) — treat as 1°C range
+  m = String(question).match(/be\s+(-?\d+)\s*°C\s+on/i);
+  if (m) { const v = parseFloat(m[1]); return { lowC: v, highC: v + 1, unit: "C" }; }
+  // Single-degree °F: "be 78°F on" (rare but possible)
+  m = String(question).match(/be\s+(-?\d+)\s*°F\s+on/i);
+  if (m) { const v = parseFloat(m[1]); return { lowC: fToC(v), highC: fToC(v + 1), unit: "F" }; }
   return null;
 }
 

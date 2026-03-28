@@ -382,10 +382,10 @@ export const CONFIG = {
     // Price-asymmetry entry strategy
     // Buy the cheap side — at 30c entry, only need 30% WR to break even
     maxCheapEntryPrice: 0.40,   // max price to consider "cheap" (40c = need 40% WR)
-    minCheapEntryPrice: 0.25,   // min price (below 25c = market already decided, cheap side won't recover in 5m)
+    minCheapEntryPrice: 0.15,   // backtested 225 markets: 15-40c + RSI + Rec = PF 1.30 ($2,266)
     modelVetoThreshold: 1.01,   // disabled — price is the edge, not model prediction
     recGatingEnabled: true,     // only enter when signal engine says ENTER (market quality filter)
-    rsiBiasEnabled: false,      // disabled for 5m — conflicts with contrarian strategy
+    rsiBiasEnabled: true,       // backtested: RSI bias improves PF 1.21 → 1.30 on 61k ticks
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
     // rangePct20 = (max(close,last20) - min(close,last20)) / lastClose

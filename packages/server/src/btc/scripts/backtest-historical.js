@@ -9,6 +9,7 @@ const PARAM_GRID = {
   maxCheapEntryPrice: [0.40, 0.45, 0.50],
   rsiBias: [false, true],
   recGating: [false, true],
+  allowedPhases: [null, ['EARLY', 'MID'], ['MID']],
 };
 
 const RSI_BEARISH = 40;
@@ -214,16 +215,19 @@ function* buildConfigs() {
       if (minCheapEntryPrice > maxCheapEntryPrice) continue;
       for (const rsiBias of PARAM_GRID.rsiBias) {
         for (const recGating of PARAM_GRID.recGating) {
-          yield {
-            minCheapEntryPrice,
-            maxCheapEntryPrice,
-            rsiBias,
-            recGating,
-            rsiBearish: rsiBias ? RSI_BEARISH : null,
-            rsiBullish: rsiBias ? RSI_BULLISH : null,
-            contractSize: CONTRACT_SIZE,
-            stopLossPct: STOP_LOSS_PCT,
-          };
+          for (const allowedPhases of PARAM_GRID.allowedPhases) {
+            yield {
+              minCheapEntryPrice,
+              maxCheapEntryPrice,
+              rsiBias,
+              recGating,
+              allowedPhases,
+              rsiBearish: rsiBias ? RSI_BEARISH : null,
+              rsiBullish: rsiBias ? RSI_BULLISH : null,
+              contractSize: CONTRACT_SIZE,
+              stopLossPct: STOP_LOSS_PCT,
+            };
+          }
         }
       }
     }
@@ -234,7 +238,14 @@ function describeConfig(config) {
   const range = `${Math.round(config.minCheapEntryPrice * 100)}-${Math.round(config.maxCheapEntryPrice * 100)}c`;
   const rsi = config.rsiBias ? `RSI on (${config.rsiBearish}/${config.rsiBullish})` : 'RSI off';
   const rec = config.recGating ? 'Rec on' : 'Rec off';
-  return `${range} | ${rsi} | ${rec}`;
+  const phase = config.allowedPhases == null
+    ? 'All phases'
+    : config.allowedPhases.length === 2 && config.allowedPhases.includes('EARLY') && config.allowedPhases.includes('MID')
+      ? 'No LATE'
+      : config.allowedPhases.length === 1 && config.allowedPhases[0] === 'MID'
+        ? 'MID only'
+        : config.allowedPhases.join(', ');
+  return `${range} | ${rsi} | ${rec} | ${phase}`;
 }
 
 function passesRsiBias(side, rsi, config) {
@@ -247,6 +258,7 @@ function passesRsiBias(side, rsi, config) {
 
 function pickEntryCandidate(tick, config) {
   if (config.recGating && tick.rec_action !== 'ENTER') return null;
+  if (config.allowedPhases != null && !config.allowedPhases.includes(tick.rec_phase)) return null;
   if (!isNum(tick.time_left_min)) return null;
 
   const candidates = [];

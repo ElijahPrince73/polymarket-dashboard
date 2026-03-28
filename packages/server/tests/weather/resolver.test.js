@@ -181,7 +181,7 @@ describe("weather resolver", () => {
         stake_usd: 20,
         trading_mode: "paper",
         model_prob: 0.6,
-        forecast_temp: 80,
+        forecast_temp: 26.67, // ~80°F in Celsius
       },
     ]);
     dbApi.getCalibration.mockResolvedValue({
@@ -199,21 +199,20 @@ describe("weather resolver", () => {
 
     await expect(runResolver(dbApi)).resolves.toEqual({ resolved: 1 });
     expect(mocks.fetchObservedHighTemp).toHaveBeenCalledWith("Dallas", "2026-03-25");
-    expect(dbApi.updateTrade).toHaveBeenCalledWith(
-      4,
-      expect.objectContaining({
-        result: "WIN",
-        actual_temp: 78,
-        forecast_error: 2,
-      })
-    );
+    // actual_temp stays in native unit (78°F), forecast_error is in °C (|26.67 - 25.56| ≈ 1.11)
+    const updateCall = dbApi.updateTrade.mock.calls[0][1];
+    expect(updateCall.result).toBe("WIN");
+    expect(updateCall.actual_temp).toBe(78);
+    expect(updateCall.forecast_error).toBeCloseTo(1.1133, 2);
+
     const [, , calibrationUpdate] = dbApi.upsertCalibration.mock.calls[0];
     expect(calibrationUpdate.bias).toBeCloseTo(0.13, 6);
     expect(calibrationUpdate.actual_temp).toBe(78);
-    expect(calibrationUpdate.forecast_error).toBe(2);
+    expect(calibrationUpdate.forecast_error).toBeCloseTo(1.1133, 2);
     expect(calibrationUpdate.last_actual_temp).toBe(78);
     expect(calibrationUpdate.resolved_count).toBe(11);
-    expect(calibrationUpdate.avg_error).toBeCloseTo(1.5454545, 6);
-    expect(calibrationUpdate.sigma).toBeCloseTo(1.5454545, 6);
+    // Rolling avg: (1.5 * 10 + 1.1133) / 11 ≈ 1.4648
+    expect(calibrationUpdate.avg_error).toBeCloseTo(1.4648, 2);
+    expect(calibrationUpdate.sigma).toBeCloseTo(1.4648, 2);
   });
 });

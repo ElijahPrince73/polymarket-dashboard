@@ -83,9 +83,14 @@ export async function runResolver(dbApi = db) {
         ? await fetchObservedHighTemp(row.city, row.event_date)
         : null;
     const actualTemp = actualObservation?.actualTemp ?? null;
+    // Convert actual temp to °C for comparison with forecast_temp (always in °C)
+    const actualUnit = actualObservation?.unit ?? "F";
+    const actualTempC = actualTemp != null
+      ? (actualUnit === "F" ? (actualTemp - 32) * 5 / 9 : actualTemp)
+      : null;
     const forecastError =
-      row.forecast_temp != null && actualTemp != null
-        ? Math.abs(row.forecast_temp - actualTemp)
+      row.forecast_temp != null && actualTempC != null
+        ? Math.abs(row.forecast_temp - actualTempC)
         : null;
 
     await dbApi.updateTrade(row.id, {

@@ -423,7 +423,7 @@ export const MODEL_CANDIDATES = {
   },
 };
 
-export const BASE_BANKROLL = 100;
+export const BASE_BANKROLL = 1000;
 export const MIN_EDGE = 0.25; // Raised from 0.15 to 0.25 (25% minimum edge)
 export const MIN_PRICE = 0.15;
 export const MAX_PRICE = 0.85;

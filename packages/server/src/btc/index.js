@@ -613,7 +613,7 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
     const activeModelDown = momentumTimeAware.adjustedDown;
 
     const edge = computeEdge({ modelUp: activeModelUp, modelDown: activeModelDown, marketYes: marketUp, marketNo: marketDown });
-    const rec = decide({ remainingMinutes: timeLeftMin, edgeUp: edge.edgeUp, edgeDown: edge.edgeDown, modelUp: activeModelUp, modelDown: activeModelDown });
+    const rec = decide({ remainingMinutes: timeLeftMin, edgeUp: edge.edgeUp, edgeDown: edge.edgeDown, modelUp: activeModelUp, modelDown: activeModelDown, config });
 
     // Spot impulse (Coinbase) over last 60s
     const spotLast = spotStream?.getLast?.() ?? { price: null, ts: null };

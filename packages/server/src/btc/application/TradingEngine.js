@@ -39,6 +39,9 @@ export class TradingEngine {
 
     /** @type {{ at: string|null, eligible: boolean, blockers: string[] }} */
     this.lastEntryStatus = { at: null, eligible: false, blockers: [] };
+
+    /** @type {Map<string, number>} */
+    this._nullPnlCountByPos = new Map();
   }
 
   /**
@@ -140,6 +143,21 @@ export class TradingEngine {
       }
     }
 
+    for (const p of positions) {
+      const posId = p.id || p.tokenID || 'default';
+      if (!isNum(p.unrealizedPnl)) {
+        const nextCount = (this._nullPnlCountByPos.get(posId) ?? 0) + 1;
+        this._nullPnlCountByPos.set(posId, nextCount);
+        console.warn(`[${mode} engine] Null PnL detected for ${posId} (${nextCount} tick${nextCount === 1 ? '' : 's'})`);
+        if (nextCount >= 3) {
+          p._forceExit = true;
+          p._forceExitReason = 'Null PnL safety (3 consecutive ticks)';
+        }
+      } else {
+        this._nullPnlCountByPos.set(posId, 0);
+      }
+    }
+
     // Update MFE/MAE tracking + PnL trajectory
     for (const p of positions) {
       const posId = p.id || p.tokenID || 'default';
@@ -179,8 +197,14 @@ export class TradingEngine {
     for (const p of positions) {
       const posId = p.id || p.tokenID || 'default';
       const graceState = this.state.getGraceState(posId);
-
-      const exitResult = evaluateExits(p, signals, this.config, graceState);
+      const exitResult = p._forceExit
+        ? {
+          decision: {
+            action: 'EXIT',
+            reason: p._forceExitReason || 'Forced exit: null PnL for 3 ticks',
+          },
+        }
+        : evaluateExits(p, signals, this.config, graceState);
 
       // Handle grace actions
       if (exitResult.graceAction === 'START_GRACE') {
@@ -290,6 +314,7 @@ export class TradingEngine {
 
             // Clean up position tracking
             this.state.clearPosition(posId);
+            this._nullPnlCountByPos.delete(posId);
 
             console.log(
               `${closeResult.pnl >= 0 ? '✅' : '❌'} [${mode}] CLOSED: ${p.side} | PnL: $${closeResult.pnl?.toFixed(2)} | ${reason}`,

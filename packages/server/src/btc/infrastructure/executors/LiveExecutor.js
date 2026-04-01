@@ -116,6 +116,8 @@ export class LiveExecutor extends OrderExecutor {
       console.warn('LiveExecutor: Startup approvals failed:', e?.message);
     });
 
+    await this._prewarmApprovals();
+
     console.log('LiveExecutor initialized.');
   }
 
@@ -508,73 +510,65 @@ export class LiveExecutor extends OrderExecutor {
         retryCount: retryCount - 1,
         resp,
       });
-
-      // Clean up tracking state
-      this._lastExitAttemptMsByToken.delete(tid);
-
-      // ── Update structured trade record with exit data ──
-      let tradePnl = 0;
-      let finalReason = reason;
-      const trade = this.openTrade;
-
-      if (trade) {
-        // Compute PnL: exit value - entry cost
-        const tradeShares = isNum(trade.shares) ? trade.shares : size;
-        const valueNow = tradeShares * sellPrice;
-        const rawPnl = valueNow - trade.contractSize;
-
-        // Apply max-loss cap (same logic as PaperExecutor)
-        const capped = capPnl(
-          rawPnl,
-          trade.contractSize,
-          tradeShares,
-          sellPrice,
-          this.config,
+      return this._finalizeClosedTrade({
+        sellPrice,
+        size,
+        reason,
+        exitMetadata,
+        tokenID: tid,
+      });
+    } catch (e) {
+      const originalError = e;
+      console.warn(`[live] EXIT primary FOK failed for ${tid}: ${e?.message || e}`);
+      try {
+        const { OrderType } = await import('@polymarket/clob-client');
+        const fallbackPrice = 0.01;
+        const fallbackResp = await this.client.createAndPostOrder(
+          { tokenID: tid, price: fallbackPrice, size, side: 'SELL' },
+          {},
+          OrderType.FOK,
+          false,
+          false,
         );
-        tradePnl = capped.pnl;
 
-        // Override reason if loss was capped
-        const effectiveMaxLoss = computeMaxLossUsd(trade.contractSize, this.config);
-        const maxLossAbs = Math.abs(effectiveMaxLoss ?? 0);
-        if (rawPnl < -maxLossAbs && tradePnl !== rawPnl) {
-          finalReason = `Max Loss ($${maxLossAbs.toFixed(2)})`;
+        if (fallbackResp?.orderID) {
+          const lifecycle = this.orderManager.trackOrder(fallbackResp.orderID, {
+            tokenID: tid, side: 'SELL', price: fallbackPrice, size,
+            extra: { reason, type: 'EXIT_SELL_FALLBACK' },
+          });
+          if (lifecycle) {
+            lifecycle.transition(LIFECYCLE_STATES.PENDING);
+          }
         }
 
-        // Update trade record
-        trade.exitPrice = capped.exitPrice;
-        trade.exitTime = new Date().toISOString();
-        trade.pnl = Number(tradePnl.toFixed(2));
-        trade.status = 'CLOSED';
-        trade.exitReason = finalReason;
+        await appendLiveTrade({
+          type: 'EXIT_SELL_FALLBACK',
+          ts: new Date().toISOString(),
+          tokenID: tid,
+          price: fallbackPrice,
+          size,
+          reason,
+          feeRateBps: exitFeeRateBps,
+          feeImpact: exitFeeImpact,
+          retryCount: retryCount - 1,
+          resp: fallbackResp,
+        });
 
-        // Spread exit-time indicator snapshots onto the trade
-        if (exitMetadata && typeof exitMetadata === 'object') {
-          Object.assign(trade, exitMetadata);
-        }
-
-        if (!trade.marketSettlementTime) {
-          trade.marketSettlementTime = deriveMarketSettlementTime(trade.marketSlug);
-        }
-        if (trade.btcAtExit === undefined || trade.btcAtExit === null) {
-          trade.btcAtExit = trade.btcSpotAtExit ?? exitMetadata?.btcSpotAtExit ?? null;
-        }
-
-        // Sync closed trade to Supabase
-        syncTradeToStoreByTimeframe(trade, 'live', this.config?.timeframe);
-        this.openTrade = null;
+        return this._finalizeClosedTrade({
+          sellPrice: fallbackPrice,
+          size,
+          reason,
+          exitMetadata,
+          tokenID: tid,
+        });
+      } catch (fallbackError) {
+        console.warn(`[live] EXIT fallback FOK failed for ${tid}: ${fallbackError?.message || fallbackError}`);
       }
 
-      return {
-        closed: true,
-        exitPrice: sellPrice,
-        pnl: tradePnl,
-        reason: finalReason,
-      };
-    } catch (e) {
       // Create and store structured failure event
-      const failEvent = createFailureEvent(null, e, retryCount - 1);
+      const failEvent = createFailureEvent(null, originalError, retryCount - 1);
       this._recordFailureEvent(failEvent);
-      console.error(`[live] EXIT failed after ${retryCount} attempt(s): ${e?.message || e}`);
+      console.error(`[live] EXIT failed after ${retryCount} attempt(s): ${originalError?.message || originalError}`);
 
       await appendLiveTrade({
         type: 'EXIT_SELL_FAILED',
@@ -583,7 +577,7 @@ export class LiveExecutor extends OrderExecutor {
         price: sellPrice,
         size,
         reason,
-        error: e?.response?.data || e?.message || String(e),
+        error: originalError?.response?.data || originalError?.message || String(originalError),
         retryCount: retryCount - 1,
       });
       return { closed: false, exitPrice: 0, pnl: 0, reason };
@@ -927,6 +921,99 @@ export class LiveExecutor extends OrderExecutor {
     }
   }
 
-  // Note: Conditional allowance management is now delegated to this.approvalService.
-  // See ApprovalService.checkAndApproveConditional() for the implementation.
+  async _finalizeClosedTrade({ sellPrice, size, reason, exitMetadata, tokenID }) {
+    if (tokenID) {
+      this._lastExitAttemptMsByToken.delete(tokenID);
+    }
+
+    let tradePnl = 0;
+    let finalReason = reason;
+    const trade = this.openTrade;
+
+    if (trade) {
+      const tradeShares = isNum(trade.shares) ? trade.shares : size;
+      const valueNow = tradeShares * sellPrice;
+      const rawPnl = valueNow - trade.contractSize;
+
+      const capped = capPnl(
+        rawPnl,
+        trade.contractSize,
+        tradeShares,
+        sellPrice,
+        this.config,
+      );
+      tradePnl = capped.pnl;
+
+      const effectiveMaxLoss = computeMaxLossUsd(trade.contractSize, this.config);
+      const maxLossAbs = Math.abs(effectiveMaxLoss ?? 0);
+      if (rawPnl < -maxLossAbs && tradePnl !== rawPnl) {
+        finalReason = `Max Loss ($${maxLossAbs.toFixed(2)})`;
+      }
+
+      trade.exitPrice = capped.exitPrice;
+      trade.exitTime = new Date().toISOString();
+      trade.pnl = Number(tradePnl.toFixed(2));
+      trade.status = 'CLOSED';
+      trade.exitReason = finalReason;
+
+      if (exitMetadata && typeof exitMetadata === 'object') {
+        Object.assign(trade, exitMetadata);
+      }
+
+      if (!trade.marketSettlementTime) {
+        trade.marketSettlementTime = deriveMarketSettlementTime(trade.marketSlug);
+      }
+      if (trade.btcAtExit === undefined || trade.btcAtExit === null) {
+        trade.btcAtExit = trade.btcSpotAtExit ?? exitMetadata?.btcSpotAtExit ?? null;
+      }
+
+      syncTradeToStoreByTimeframe(trade, 'live', this.config?.timeframe);
+      this.openTrade = null;
+    }
+
+    return {
+      closed: true,
+      exitPrice: sellPrice,
+      pnl: tradePnl,
+      reason: finalReason,
+    };
+  }
+
+  async _prewarmApprovals() {
+    try {
+      const positions = await this.client.getPositions();
+      if (!Array.isArray(positions) || positions.length === 0) {
+        console.log('[live] No open positions to pre-warm approvals for');
+        return;
+      }
+
+      let warmed = 0;
+      for (const position of positions) {
+        const qty = Number(position?.qty ?? position?.size ?? 0);
+        if (!position?.tokenID || !Number.isFinite(qty) || qty <= 0) {
+          continue;
+        }
+
+        try {
+          if (typeof this._ensureConditionalAllowance === 'function') {
+            await this._ensureConditionalAllowance(position.tokenID);
+            console.log(`[live] Pre-warmed approval for tokenID: ${position.tokenID}`);
+            warmed++;
+          }
+        } catch (e) {
+          console.warn(`[live] Pre-warm approval failed for tokenID ${position.tokenID}: ${e?.message || e}`);
+        }
+      }
+
+      if (warmed === 0) {
+        console.log('[live] No open positions to pre-warm approvals for');
+      }
+    } catch (e) {
+      console.warn('[live] Failed to pre-warm approvals:', e?.message || e);
+    }
+  }
+
+  async _ensureConditionalAllowance(tokenID) {
+    return this.approvalService.checkAndApproveConditional(tokenID);
+  }
 }

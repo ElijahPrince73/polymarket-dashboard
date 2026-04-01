@@ -145,13 +145,17 @@ export class TradingEngine {
 
     for (const p of positions) {
       const posId = p.id || p.tokenID || 'default';
-      if (!isNum(p.unrealizedPnl)) {
+      // Only check null PnL on positions older than 30 seconds
+      // Fresh positions may not have pricing data yet (slug mismatch on first ticks)
+      const entryMs = p.entryTime ? new Date(p.entryTime).getTime() : null;
+      const posAgeSec = entryMs ? (Date.now() - entryMs) / 1000 : 0;
+      if (!isNum(p.unrealizedPnl) && posAgeSec > 30) {
         const nextCount = (this._nullPnlCountByPos.get(posId) ?? 0) + 1;
         this._nullPnlCountByPos.set(posId, nextCount);
-        console.warn(`[${mode} engine] Null PnL detected for ${posId} (${nextCount} tick${nextCount === 1 ? '' : 's'})`);
-        if (nextCount >= 3) {
+        console.warn(`[${mode} engine] Null PnL detected for ${posId} (${nextCount} consecutive, age ${posAgeSec.toFixed(0)}s)`);
+        if (nextCount >= 10) {
           p._forceExit = true;
-          p._forceExitReason = 'Null PnL safety (3 consecutive ticks)';
+          p._forceExitReason = 'Null PnL safety (10 consecutive ticks)';
         }
       } else {
         this._nullPnlCountByPos.set(posId, 0);

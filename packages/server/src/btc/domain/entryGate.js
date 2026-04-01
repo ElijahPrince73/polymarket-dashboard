@@ -170,6 +170,17 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     }
   }
 
+  // ── 3b2. Phase filter (block LATE entries) ───────────────────────
+  // When set, only allow entries during specified phases.
+  // 5m data: LATE phase = 5% WR, -$1,161 across 105 trades.
+  const allowedPhases = config.allowedPhases ?? null;
+  if (allowedPhases) {
+    const currentPhase = signals?.rec?.phase ?? null;
+    if (currentPhase && !allowedPhases.includes(currentPhase)) {
+      blockers.push(`Phase ${currentPhase} blocked (allowed: ${allowedPhases.join(', ')})`);
+    }
+  }
+
   // ── 3c. RSI directional bias ────────────────────────────────────
   // When enabled, align cheap side with momentum direction.
   // RSI < bearish threshold → only allow DOWN. RSI > bullish → only allow UP.

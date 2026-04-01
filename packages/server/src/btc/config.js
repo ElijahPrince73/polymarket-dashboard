@@ -386,6 +386,7 @@ export const CONFIG = {
     modelVetoThreshold: 1.01,   // disabled — price is the edge, not model prediction
     recGatingEnabled: true,     // only enter when signal engine says ENTER (market quality filter)
     rsiBiasEnabled: true,       // backtested: RSI bias improves PF 1.21 → 1.30 on 61k ticks
+    allowedPhases: ['EARLY', 'MID'],  // block LATE: 5% WR, -$1,161 across 105 trades (403 total)
 
     // Chop/volatility filter (BTC reference): block entries when recent movement is too small.
     // rangePct20 = (max(close,last20) - min(close,last20)) / lastClose

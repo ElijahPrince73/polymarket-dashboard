@@ -226,6 +226,8 @@ export async function assembleStatus(options = {}) {
     orderLifecycle: engine?.executor?.orderManager?.getAllOrderViews?.() ?? [],
     reconciliation: engine?.executor?.getReconciliationStatus?.() ?? null,
     failureEvents: (engine?.executor?.getFailureEvents?.() ?? []).slice(-10),
-    runtime: globalThis[statusKey] ?? null
+    runtime: globalThis[statusKey] ?? null,
+    sleepMode: globalThis[statusKey]?.sleepMode ?? false,
+    sleepReason: globalThis[statusKey]?.sleepReason ?? null,
   };
 }

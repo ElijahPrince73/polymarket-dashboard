@@ -143,19 +143,16 @@ export class TradingEngine {
       }
     }
 
+    // Null PnL monitoring (log-only, no forced exits)
+    // Forced exits were cutting winning trades during normal slug transitions.
+    // Keep tracking for observability but don't act on it.
     for (const p of positions) {
       const posId = p.id || p.tokenID || 'default';
-      // Only check null PnL on positions older than 30 seconds
-      // Fresh positions may not have pricing data yet (slug mismatch on first ticks)
-      const entryMs = p.entryTime ? new Date(p.entryTime).getTime() : null;
-      const posAgeSec = entryMs ? (Date.now() - entryMs) / 1000 : 0;
-      if (!isNum(p.unrealizedPnl) && posAgeSec > 30) {
+      if (!isNum(p.unrealizedPnl)) {
         const nextCount = (this._nullPnlCountByPos.get(posId) ?? 0) + 1;
         this._nullPnlCountByPos.set(posId, nextCount);
-        console.warn(`[${mode} engine] Null PnL detected for ${posId} (${nextCount} consecutive, age ${posAgeSec.toFixed(0)}s)`);
-        if (nextCount >= 10) {
-          p._forceExit = true;
-          p._forceExitReason = 'Null PnL safety (10 consecutive ticks)';
+        if (nextCount % 10 === 1) {
+          console.warn(`[${mode} engine] Null PnL for ${posId} (${nextCount} ticks)`);
         }
       } else {
         this._nullPnlCountByPos.set(posId, 0);

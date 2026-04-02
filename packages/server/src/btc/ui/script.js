@@ -413,7 +413,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // (e.g. CLOB timeout), skip this cycle to avoid racing UI updates.
     if (_fetchInProgress) return;
     _fetchInProgress = true;
-    try { await _fetchDataInner(); } finally { _fetchInProgress = false; }
+    try { await _fetchDataInner(); } finally {
+      _fetchInProgress = false;
+      // Adaptive polling: slow down outside trading hours
+      const isSleeping = window._serverSleepMode === true;
+      const targetInterval = isSleeping ? 60_000 : 1500;
+      if (targetInterval !== _pollIntervalMs) {
+        _pollIntervalMs = targetInterval;
+        clearInterval(_pollTimer);
+        _pollTimer = setInterval(fetchData, _pollIntervalMs);
+        console.log('[UI] Poll interval: ' + _pollIntervalMs + 'ms (sleep=' + isSleeping + ')');
+      }
+    }
   };
 
   const _fetchDataInner = async () => {
@@ -493,6 +504,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (_skipStatusRender) throw new Error('__skip_status__');
 
       lastStatusCache = statusData;
+
+      // Track server sleep mode for adaptive polling
+      window._serverSleepMode = statusData?.sleepMode === true;
 
       // Update status bar with kill-switch data from status response
       const ksData = statusData.killSwitch;
@@ -1141,6 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
   tradesOnlyLosses?.addEventListener('change', rerender);
 
   fetchData();
-  setInterval(fetchData, 1500);
+  let _pollIntervalMs = 1500;
+  let _pollTimer = setInterval(fetchData, _pollIntervalMs);
 });
 

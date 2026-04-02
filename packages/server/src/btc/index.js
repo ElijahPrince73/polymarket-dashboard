@@ -474,6 +474,31 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
   const loopFn = async () => {
   while (true) {
     try {
+    // ── Sleep mode: reduce polling outside trading hours ──────────
+    const _tradingHoursEnabled = config.paperTrading?.tradingHoursEnabled ?? true;
+    const _startHour = config.paperTrading?.tradingHoursStart ?? 6;
+    const _endHour = config.paperTrading?.tradingHoursEnd ?? 17;
+
+    if (_tradingHoursEnabled) {
+      const _pstHour = Number(new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles',
+        hour: '2-digit',
+        hour12: false,
+      }).formatToParts(new Date()).find(p => p.type === 'hour')?.value);
+
+      if (_pstHour < _startHour || _pstHour >= _endHour) {
+        globalThis[statusKey] = {
+          ...(globalThis[statusKey] || {}),
+          sleepMode: true,
+          sleepReason: `Outside trading hours (${_pstHour}:00 PST, active ${_startHour}-${_endHour})`,
+        };
+        await sleep(30_000);
+        continue;
+      } else if (globalThis[statusKey]?.sleepMode) {
+        globalThis[statusKey] = { ...(globalThis[statusKey] || {}), sleepMode: false, sleepReason: null };
+      }
+    }
+
     // If we couldn't seed at boot and candles are still empty, attempt a one-time seed.
     if (!seededFromRest && chainlinkCandles1m.length < 30) {
       try {

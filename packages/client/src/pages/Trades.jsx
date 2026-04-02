@@ -90,7 +90,12 @@ const sortableColumns = {
   exitDisplay: (row) => (typeof row.exitDisplay === 'number' ? row.exitDisplay : Number.NEGATIVE_INFINITY),
   pnl: (row) => Number(row.pnl || 0),
   exitMeta: (row) => row.exitMeta,
+  session: (row) => row.session,
 };
+
+function filterClass() {
+  return 'nothing-input px-4 py-2';
+}
 
 export default function Trades() {
   const { data: btcTrades } = useApi('/api/btc/trades');
@@ -157,45 +162,39 @@ export default function Trades() {
       <button
         type="button"
         onClick={() => toggleSort(column)}
-        className="inline-flex items-center gap-1 text-left font-medium text-slate-200 hover:text-white"
+        className="font-['Space_Mono'] text-[11px] tracking-[0.08em] uppercase text-[var(--text-secondary)]"
       >
-        {label}
-        <span className="text-xs text-slate-400">{active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+        {label} {active ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
       </button>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-        <h1 className="text-lg font-semibold">Unified Trades</h1>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <select
-            value={marketFilter}
-            onChange={(event) => setMarketFilter(event.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
-          >
-            <option value="ALL">Market: ALL</option>
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="nothing-section-title">Trade Ledger</p>
+          <h1 className="nothing-page-title mt-3">Unified Trades</h1>
+        </div>
+        <p className="nothing-meta">{filteredTrades.length} matching rows</p>
+      </section>
+
+      <section className="nothing-card p-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <select value={marketFilter} onChange={(event) => setMarketFilter(event.target.value)} className={filterClass()}>
+            <option value="ALL">Market: All</option>
             <option value="BTC">Market: BTC</option>
             <option value="Weather">Market: Weather</option>
           </select>
 
-          <select
-            value={resultFilter}
-            onChange={(event) => setResultFilter(event.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
-          >
-            <option value="ALL">Result: ALL</option>
-            <option value="WIN">Result: WIN</option>
-            <option value="LOSS">Result: LOSS</option>
+          <select value={resultFilter} onChange={(event) => setResultFilter(event.target.value)} className={filterClass()}>
+            <option value="ALL">Result: All</option>
+            <option value="WIN">Result: Win</option>
+            <option value="LOSS">Result: Loss</option>
           </select>
 
-          <select
-            value={sideFilter}
-            onChange={(event) => setSideFilter(event.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
-          >
-            <option value="ALL">Side: ALL</option>
+          <select value={sideFilter} onChange={(event) => setSideFilter(event.target.value)} className={filterClass()}>
+            <option value="ALL">Side: All</option>
             {uniqueSides.map((side) => (
               <option key={side} value={side}>
                 Side: {side}
@@ -203,11 +202,7 @@ export default function Trades() {
             ))}
           </select>
 
-          <select
-            value={pageSize}
-            onChange={(event) => setPageSize(event.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
-          >
+          <select value={pageSize} onChange={(event) => setPageSize(event.target.value)} className={filterClass()}>
             <option value="20">Show: 20</option>
             <option value="50">Show: 50</option>
             <option value="100">Show: 100</option>
@@ -216,52 +211,46 @@ export default function Trades() {
         </div>
       </section>
 
-      <section className="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-800 text-left">
+      <section className="nothing-card overflow-x-auto">
+        <table className="nothing-table min-w-full">
+          <thead>
             <tr>
-              <th className="px-3 py-2"><SortHeader column="market" label="Market" /></th>
-              <th className="px-3 py-2"><SortHeader column="entryTime" label="Entry Time" /></th>
-              <th className="px-3 py-2"><SortHeader column="exitTime" label="Exit Time" /></th>
-              <th className="px-3 py-2"><SortHeader column="side" label="Side" /></th>
-              <th className="px-3 py-2"><SortHeader column="stake" label="Stake" /></th>
-              <th className="px-3 py-2"><SortHeader column="entryPrice" label="Entry Price" /></th>
-              <th className="px-3 py-2"><SortHeader column="exitDisplay" label="Exit Price / Result" /></th>
-              <th className="px-3 py-2"><SortHeader column="pnl" label="P&L" /></th>
-              <th className="px-3 py-2"><SortHeader column="session" label="Session" /></th>
-              <th className="px-3 py-2"><SortHeader column="exitMeta" label="Exit Reason / City" /></th>
+              <th><SortHeader column="market" label="Market" /></th>
+              <th><SortHeader column="entryTime" label="Entry Time" /></th>
+              <th><SortHeader column="exitTime" label="Exit Time" /></th>
+              <th><SortHeader column="side" label="Side" /></th>
+              <th><SortHeader column="stake" label="Stake" /></th>
+              <th><SortHeader column="entryPrice" label="Entry Price" /></th>
+              <th><SortHeader column="exitDisplay" label="Exit Price / Result" /></th>
+              <th><SortHeader column="pnl" label="P&L" /></th>
+              <th><SortHeader column="session" label="Session" /></th>
+              <th><SortHeader column="exitMeta" label="Exit Reason / City" /></th>
             </tr>
           </thead>
           <tbody>
             {visibleTrades.map((row) => (
-              <tr key={`${row.market}-${row.id}`} className="border-t border-slate-700 bg-slate-950">
-                <td className="px-3 py-2">
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                      row.market === 'BTC' ? 'bg-orange-500/20 text-orange-300' : 'bg-cyan-500/20 text-cyan-300'
-                    }`}
-                  >
-                    {row.market}
-                  </span>
+              <tr key={`${row.market}-${row.id}`}>
+                <td data-mono="true">
+                  <span className="nothing-tag inline-flex px-3 py-1">{row.market}</span>
                 </td>
-                <td className="px-3 py-2 text-slate-300">{formatDateTime(row.entryTime)}</td>
-                <td className="px-3 py-2 text-slate-300">{formatDateTime(row.exitTime)}</td>
-                <td className="px-3 py-2">{row.side}</td>
-                <td className="px-3 py-2 text-slate-300">{formatCurrency(row.stake)}</td>
-                <td className="px-3 py-2 text-slate-300">{formatCurrency(row.entryPrice)}</td>
-                <td className="px-3 py-2 text-slate-300">
+                <td data-mono="true" className="text-[var(--text-secondary)]">{formatDateTime(row.entryTime)}</td>
+                <td data-mono="true" className="text-[var(--text-secondary)]">{formatDateTime(row.exitTime)}</td>
+                <td data-mono="true">{row.side}</td>
+                <td data-mono="true">{formatCurrency(row.stake)}</td>
+                <td data-mono="true">{formatCurrency(row.entryPrice)}</td>
+                <td data-mono="true">
                   {typeof row.exitDisplay === 'number' ? formatCurrency(row.exitDisplay) : row.exitDisplay}
                 </td>
-                <td className={`px-3 py-2 font-medium ${row.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                <td data-mono="true" className={row.pnl >= 0 ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>
                   {formatCurrency(row.pnl)}
                 </td>
-                <td className="px-3 py-2 text-slate-400">{row.session}</td>
-                <td className="px-3 py-2 text-slate-300">{row.exitMeta}</td>
+                <td data-mono="true" className="text-[var(--text-secondary)]">{row.session}</td>
+                <td>{row.exitMeta}</td>
               </tr>
             ))}
             {visibleTrades.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={10} className="py-8 text-center text-[var(--text-secondary)]">
                   No trades match filters.
                 </td>
               </tr>

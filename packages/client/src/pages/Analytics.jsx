@@ -3,7 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ComposedChart,
   Line,
   ReferenceLine,
@@ -94,16 +93,11 @@ function toHourMap(hourlyRows) {
 }
 
 function heatCellClass(value, maxAbs) {
-  if (maxAbs <= 0) return 'bg-slate-800 text-slate-200';
+  if (maxAbs <= 0) return 'border-[var(--border)] text-[var(--text-primary)]';
   const intensity = Math.min(Math.abs(value) / maxAbs, 1);
-  if (value >= 0) {
-    if (intensity > 0.66) return 'bg-emerald-500/60 text-emerald-50';
-    if (intensity > 0.33) return 'bg-emerald-500/35 text-emerald-50';
-    return 'bg-emerald-500/15 text-emerald-100';
-  }
-  if (intensity > 0.66) return 'bg-red-500/60 text-red-50';
-  if (intensity > 0.33) return 'bg-red-500/35 text-red-50';
-  return 'bg-red-500/15 text-red-100';
+  if (intensity > 0.66) return 'border-[var(--border-visible)] text-[var(--text-display)]';
+  if (intensity > 0.33) return 'border-[var(--border)] text-[var(--text-primary)]';
+  return 'border-[var(--border)] text-[var(--text-secondary)]';
 }
 
 function sizeBuckets(rows) {
@@ -152,11 +146,35 @@ function normalizeEquity(series, normalized) {
 }
 
 const tabList = [
-  { id: 'distribution', label: 'Distribution & Edge' },
+  { id: 'distribution', label: 'Distribution' },
   { id: 'timing', label: 'Timing' },
   { id: 'size', label: 'Trade Size' },
   { id: 'equity', label: 'Equity Curve' },
 ];
+
+function chartGridProps() {
+  return {
+    stroke: 'var(--border-visible)',
+    vertical: false,
+  };
+}
+
+function chartAxisProps() {
+  return {
+    stroke: 'var(--text-secondary)',
+    tickLine: false,
+    axisLine: false,
+  };
+}
+
+function tooltipStyle() {
+  return {
+    backgroundColor: 'var(--surface)',
+    border: '1px solid var(--border-visible)',
+    borderRadius: 16,
+    color: 'var(--text-primary)',
+  };
+}
 
 export default function Analytics() {
   const { data: distributions } = useApi('/api/analytics/distributions');
@@ -220,95 +238,95 @@ export default function Analytics() {
   const equityRows = normalizeEquity(rawEquitySeries || [], normalizedEquity);
 
   return (
-    <div className="space-y-4">
-      <section className="flex flex-wrap gap-2 rounded-lg border border-slate-700 bg-slate-900 p-3">
-        {tabList.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              activeTab === tab.id
-                ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/50'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="space-y-6">
+      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="nothing-section-title">Analytics</p>
+          <h1 className="nothing-page-title mt-3">Edge Diagnostics</h1>
+        </div>
+        <div className="nothing-segmented">
+          {tabList.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              data-active={activeTab === tab.id}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </section>
 
       {activeTab === 'distribution' ? (
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <article className="rounded-lg border border-slate-700 bg-slate-900 p-4 xl:col-span-2">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">PnL Distribution Histogram</h2>
-              <div className="flex gap-2">
+          <article className="nothing-card p-5 xl:col-span-2">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="nothing-section-title">Histogram</p>
+                <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">PnL Distribution</h2>
+              </div>
+              <div className="nothing-segmented">
                 {['all', 'bitcoin', 'weather'].map((key) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setDistributionFilter(key)}
-                    className={`rounded px-2 py-1 text-xs font-medium ${
-                      distributionFilter === key
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-slate-800 text-slate-300'
-                    }`}
+                    data-active={distributionFilter === key}
                   >
-                    {key === 'all' ? 'ALL' : key === 'bitcoin' ? 'Bitcoin' : 'Weather'}
+                    {key === 'all' ? 'All' : key}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="h-80">
+            <div className="nothing-chart h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={histogramData} margin={{ top: 12, right: 8, left: 0, bottom: 56 }}>
-                  <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
+                  <CartesianGrid {...chartGridProps()} />
                   <XAxis
                     dataKey="index"
                     type="number"
-                    stroke="#94a3b8"
+                    {...chartAxisProps()}
                     tickFormatter={(value) => histogramData[value]?.bucket || ''}
                     domain={[0, Math.max(histogramData.length - 1, 1)]}
                     ticks={histogramData.map((row) => row.index)}
-                    tick={{ fontSize: 11 }}
                     interval={0}
                     angle={-20}
                     textAnchor="end"
                     height={62}
                   />
-                  <YAxis stroke="#94a3b8" />
+                  <YAxis {...chartAxisProps()} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
+                    contentStyle={tooltipStyle()}
                     formatter={(value) => [String(value), 'Count']}
                     labelFormatter={(value) => histogramData[value]?.bucket || '--'}
                   />
-                  <ReferenceLine x={meanIndex} stroke="#fbbf24" strokeDasharray="6 4" label="Mean" />
-                  <ReferenceLine x={medianIndex} stroke="#a78bfa" strokeDasharray="6 4" label="Median" />
-                  <Bar dataKey="count">
-                    {histogramData.map((row) => (
-                      <Cell key={row.bucket} fill={row.center >= 0 ? '#34d399' : '#f87171'} />
-                    ))}
-                  </Bar>
+                  <ReferenceLine x={meanIndex} stroke="var(--text-secondary)" strokeDasharray="6 4" />
+                  <ReferenceLine x={medianIndex} stroke="var(--text-display)" strokeDasharray="3 3" />
+                  <Bar dataKey="count" fill="var(--text-display)" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </article>
 
-          <article className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-            <h3 className="text-base font-semibold">Win/Loss Size</h3>
-            <div className="mt-4 grid grid-cols-1 gap-3">
-              <div className="rounded border border-emerald-500/40 bg-emerald-500/10 p-3">
-                <p className="text-xs uppercase tracking-wide text-emerald-200">Avg Win</p>
-                <p className="mt-1 text-2xl font-semibold text-emerald-300">{formatCurrency(metricsSource?.avgWin)}</p>
+          <article className="nothing-card p-5">
+            <p className="nothing-section-title">Summary</p>
+            <div className="mt-5 space-y-4">
+              <div className="border-b border-[var(--border)] pb-4">
+                <p className="nothing-label">Avg Win</p>
+                <p className="mt-2 text-2xl text-[var(--success)]">{formatCurrency(metricsSource?.avgWin)}</p>
               </div>
-              <div className="rounded border border-red-500/40 bg-red-500/10 p-3">
-                <p className="text-xs uppercase tracking-wide text-red-200">Avg Loss</p>
-                <p className="mt-1 text-2xl font-semibold text-red-300">{formatCurrency(metricsSource?.avgLoss)}</p>
+              <div className="border-b border-[var(--border)] pb-4">
+                <p className="nothing-label">Avg Loss</p>
+                <p className="mt-2 text-2xl text-[var(--accent)]">{formatCurrency(metricsSource?.avgLoss)}</p>
               </div>
-              <div className="rounded border border-slate-700 bg-slate-950 p-3 text-sm text-slate-300">
-                <p>Profit Factor: {Number(metricsSource?.profitFactor || 0).toFixed(2)}</p>
-                <p>Win Rate: {formatPercent(metricsSource?.winRate)}</p>
+              <div className="flex items-center justify-between">
+                <span className="nothing-label">Profit Factor</span>
+                <span className="font-['Space_Mono'] text-sm">{Number(metricsSource?.profitFactor || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="nothing-label">Win Rate</span>
+                <span className="font-['Space_Mono'] text-sm">{formatPercent(metricsSource?.winRate)}</span>
               </div>
             </div>
           </article>
@@ -317,55 +335,46 @@ export default function Analytics() {
 
       {activeTab === 'timing' ? (
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <article className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Hour-of-Day Heatmap</h2>
-              <div className="flex gap-2">
+          <article className="nothing-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="nothing-section-title">Timing</p>
+                <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">Hour Map</h2>
+              </div>
+              <div className="nothing-segmented">
                 {['all', 'bitcoin', 'weather'].map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setTimingFilter(key)}
-                    className={`rounded px-2 py-1 text-xs font-medium ${
-                      timingFilter === key ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    {key === 'all' ? 'ALL' : key === 'bitcoin' ? 'Bitcoin' : 'Weather'}
+                  <button key={key} type="button" onClick={() => setTimingFilter(key)} data-active={timingFilter === key}>
+                    {key === 'all' ? 'All' : key}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 lg:grid-cols-6">
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-4">
               {timingHourlyRows.map((row) => (
                 <div
                   key={row.hour}
-                  className={`rounded border border-slate-700 p-2 text-center text-xs ${heatCellClass(row.pnl, hourlyMaxAbs)}`}
+                  className={`rounded-xl border bg-[var(--surface-raised)] p-3 text-center ${heatCellClass(row.pnl, hourlyMaxAbs)}`}
                   title={`Hour ${row.hour}: ${formatCurrency(row.pnl)} | Trades ${row.trades}`}
                 >
-                  <p className="font-semibold">{row.hour}</p>
-                  <p>{formatCurrency(row.pnl)}</p>
+                  <p className="nothing-label">{String(row.hour).padStart(2, '0')}</p>
+                  <p className={`mt-2 font-['Space_Mono'] text-sm ${row.pnl >= 0 ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
+                    {formatCurrency(row.pnl)}
+                  </p>
                 </div>
               ))}
             </div>
           </article>
 
-          <article className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-            <h2 className="mb-3 text-lg font-semibold">Day-of-Week Performance</h2>
-            <div className="h-80">
+          <article className="nothing-card p-5">
+            <p className="nothing-section-title">Day Of Week</p>
+            <div className="nothing-chart mt-4 h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dayRows} layout="vertical" margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                  <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                  <XAxis type="number" stroke="#94a3b8" />
-                  <YAxis type="category" dataKey="day" stroke="#94a3b8" width={42} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
-                    formatter={(value) => formatCurrency(value)}
-                  />
-                  <Bar dataKey="pnl">
-                    {dayRows.map((row) => (
-                      <Cell key={row.day} fill={row.pnl >= 0 ? '#34d399' : '#f87171'} />
-                    ))}
-                  </Bar>
+                  <CartesianGrid {...chartGridProps()} />
+                  <XAxis type="number" {...chartAxisProps()} />
+                  <YAxis type="category" dataKey="day" width={42} {...chartAxisProps()} />
+                  <Tooltip contentStyle={tooltipStyle()} formatter={(value) => formatCurrency(value)} />
+                  <Bar dataKey="pnl" fill="var(--text-display)" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -375,61 +384,53 @@ export default function Analytics() {
 
       {activeTab === 'size' ? (
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <article className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Stake vs PnL Scatter</h2>
-              <div className="flex gap-2">
+          <article className="nothing-card p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="nothing-section-title">Sizing</p>
+                <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">Stake vs PnL</h2>
+              </div>
+              <div className="nothing-segmented">
                 {['all', 'bitcoin', 'weather'].map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setSizeFilter(key)}
-                    className={`rounded px-2 py-1 text-xs font-medium ${
-                      sizeFilter === key ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    {key === 'all' ? 'ALL' : key === 'bitcoin' ? 'Bitcoin' : 'Weather'}
+                  <button key={key} type="button" onClick={() => setSizeFilter(key)} data-active={sizeFilter === key}>
+                    {key === 'all' ? 'All' : key}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="h-80">
+            <div className="nothing-chart h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart>
-                  <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                  <XAxis type="number" dataKey="x" name="Stake" stroke="#94a3b8" />
-                  <YAxis type="number" dataKey="y" name="PnL" stroke="#94a3b8" />
+                  <CartesianGrid {...chartGridProps()} />
+                  <XAxis type="number" dataKey="x" name="Stake" {...chartAxisProps()} />
+                  <YAxis type="number" dataKey="y" name="PnL" {...chartAxisProps()} />
                   <Tooltip
-                    cursor={{ strokeDasharray: '4 4' }}
-                    contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
+                    cursor={{ strokeDasharray: '4 4', stroke: 'var(--border-visible)' }}
+                    contentStyle={tooltipStyle()}
                     formatter={(value, name) => [formatCurrency(value), name === 'y' ? 'PnL' : 'Stake']}
                   />
-                  <Scatter name="Wins" data={scatterWins} fill="#34d399" />
-                  <Scatter name="Losses" data={scatterLosses} fill="#f87171" />
+                  <Scatter name="Wins" data={scatterWins} fill="var(--text-display)" />
+                  <Scatter name="Losses" data={scatterLosses} fill="var(--text-secondary)" />
                 </ScatterChart>
               </ResponsiveContainer>
             </div>
           </article>
 
-          <article className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-            <h2 className="mb-3 text-lg font-semibold">Win Rate by Size Bucket</h2>
-            <div className="h-80">
+          <article className="nothing-card p-5">
+            <p className="nothing-section-title">Bucketed Win Rate</p>
+            <div className="nothing-chart mt-4 h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sizeWinRateBars}>
-                  <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                  <XAxis dataKey="label" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" tickFormatter={(value) => `${Number(value).toFixed(0)}%`} />
+                  <CartesianGrid {...chartGridProps()} />
+                  <XAxis dataKey="label" {...chartAxisProps()} />
+                  <YAxis {...chartAxisProps()} tickFormatter={(value) => `${Number(value).toFixed(0)}%`} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
+                    contentStyle={tooltipStyle()}
                     formatter={(value, name) =>
                       name === 'winRate' ? `${Number(value).toFixed(2)}%` : String(Number(value || 0))
                     }
                   />
-                  <Bar dataKey="winRate">
-                    {sizeWinRateBars.map((row) => (
-                      <Cell key={row.label} fill={row.winRate >= 50 ? '#34d399' : '#f87171'} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="winRate" fill="var(--text-display)" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -438,46 +439,47 @@ export default function Analytics() {
       ) : null}
 
       {activeTab === 'equity' ? (
-        <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Equity Curve</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              {['combined', 'bitcoin', 'weather'].map((key) => (
+        <section className="nothing-card p-5">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="nothing-section-title">Equity</p>
+              <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">Curve Study</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="nothing-segmented">
+                {['combined', 'bitcoin', 'weather'].map((key) => (
+                  <button key={key} type="button" onClick={() => setEquityFilter(key)} data-active={equityFilter === key}>
+                    {key === 'combined' ? 'Combined' : key}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-3">
+                <span className="nothing-label">Normalized</span>
                 <button
-                  key={key}
                   type="button"
-                  onClick={() => setEquityFilter(key)}
-                  className={`rounded px-2 py-1 text-xs font-medium ${
-                    equityFilter === key ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-300'
-                  }`}
+                  onClick={() => setNormalizedEquity((current) => !current)}
+                  className="nothing-toggle"
+                  data-active={normalizedEquity}
+                  aria-pressed={normalizedEquity}
                 >
-                  {key === 'combined' ? 'Combined' : key === 'bitcoin' ? 'BTC Only' : 'Weather Only'}
+                  <span className="nothing-toggle-thumb" />
                 </button>
-              ))}
-              <label className="inline-flex items-center gap-1 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={normalizedEquity}
-                  onChange={(event) => setNormalizedEquity(event.target.checked)}
-                  className="h-4 w-4 accent-emerald-500"
-                />
-                Normalized
               </label>
             </div>
           </div>
-          <div className="h-96">
+          <div className="nothing-chart h-96">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={equityRows}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
+                <CartesianGrid {...chartGridProps()} />
+                <XAxis dataKey="date" {...chartAxisProps()} />
                 <YAxis
-                  stroke="#94a3b8"
+                  {...chartAxisProps()}
                   tickFormatter={(value) =>
                     normalizedEquity ? `${Number(value).toFixed(1)}%` : formatCurrency(value)
                   }
                 />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
+                  contentStyle={tooltipStyle()}
                   formatter={(value, name) => {
                     if (name === 'equity') {
                       return [normalizedEquity ? `${Number(value).toFixed(2)}%` : formatCurrency(value), 'Equity'];
@@ -485,32 +487,8 @@ export default function Analytics() {
                     return [formatCurrency(value), 'PnL'];
                   }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="equity"
-                  stroke="#10b981"
-                  strokeWidth={2.5}
-                  dot={(props) => {
-                    const pnl = Number(props?.payload?.pnl || 0);
-                    const market = String(props?.payload?.market || '').toLowerCase();
-                    const fill =
-                      market === 'bitcoin'
-                        ? '#f97316'
-                        : market === 'weather'
-                          ? '#06b6d4'
-                          : '#10b981';
-                    return (
-                      <circle
-                        cx={props.cx}
-                        cy={props.cy}
-                        r={Math.abs(pnl) > 20 ? 4 : 2.2}
-                        fill={fill}
-                        stroke="none"
-                      />
-                    );
-                  }}
-                />
-                <Scatter dataKey="equity" fill="transparent" />
+                <Line type="monotone" dataKey="equity" stroke="var(--text-display)" strokeWidth={2} dot={false} />
+                <Scatter dataKey="equity" fill="var(--text-secondary)" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

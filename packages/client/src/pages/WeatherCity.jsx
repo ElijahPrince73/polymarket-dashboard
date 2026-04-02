@@ -108,21 +108,21 @@ export default function WeatherCity() {
 
   if (!cityStats && cityTrades.length === 0 && livePositions.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-950 p-4">
+      <div className="min-h-screen bg-[var(--black)] p-4">
         <div className="mx-auto max-w-6xl">
           <Link 
             to="/weather" 
-            className="mb-6 inline-flex items-center gap-2 text-slate-400 hover:text-slate-300"
+            className="mb-6 inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <ArrowLeftIcon className="h-4 w-4" />
             Back to Weather Overview
           </Link>
           
-          <div className="rounded-lg border border-slate-800 bg-slate-900 p-8 text-center">
-            <h1 className="text-2xl font-bold text-slate-100 mb-4">
+          <div className="rounded-lg border border-slate-800 bg-[var(--surface)] p-8 text-center">
+            <h1 className="text-2xl font-bold text-[var(--text-display)] mb-4">
               {city} Weather Trading
             </h1>
-            <p className="text-slate-400">
+            <p className="text-[var(--text-secondary)]">
               No trading data found for {city}. This city may not be actively traded or the name might be misspelled.
             </p>
           </div>
@@ -132,13 +132,13 @@ export default function WeatherCity() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4">
+    <div className="min-h-screen bg-[var(--black)] p-4">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <Link 
             to="/weather" 
-            className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-300"
+            className="inline-flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <ArrowLeftIcon className="h-4 w-4" />
             Back to Weather Overview
@@ -147,7 +147,7 @@ export default function WeatherCity() {
 
         {/* City Title & Stats */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-100 mb-6">
+          <h1 className="text-3xl font-bold text-[var(--text-display)] mb-6">
             {city} Weather Trading
           </h1>
 
@@ -187,14 +187,14 @@ export default function WeatherCity() {
         {/* Live Positions */}
         {livePositions.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-slate-100 mb-4">
+            <h2 className="text-xl font-semibold text-[var(--text-display)] mb-4">
               Live Orders ({livePositions.length})
             </h2>
             <div className="space-y-3">
               {livePositions.map((order, index) => (
                 <div
                   key={order.id || index}
-                  className="rounded-lg border border-slate-700 bg-slate-800 p-4"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] p-4"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -204,17 +204,17 @@ export default function WeatherCity() {
                         }`}>
                           {order.side}
                         </span>
-                        <span className="text-slate-400 text-sm">
+                        <span className="text-[var(--text-secondary)] text-sm">
                           @ {(order.entry_price * 100).toFixed(0)}¢
                         </span>
-                        <span className="text-slate-500 text-sm">
+                        <span className="text-[var(--text-disabled)] text-sm">
                           {formatDate(order.event_date)}
                         </span>
                       </div>
-                      <p className="text-slate-200 text-sm mb-1">
+                      <p className="text-[var(--text-primary)] text-sm mb-1">
                         {order.question || 'Unknown market'}
                       </p>
-                      <p className="text-slate-400 text-xs">
+                      <p className="text-[var(--text-secondary)] text-xs">
                         {order.pendingSize ? 
                           `${order.pendingSize.toFixed(1)} shares pending` : 
                           `${order.actualPosition?.toFixed(1)} shares filled`
@@ -233,7 +233,7 @@ export default function WeatherCity() {
         {/* Trade History */}
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           {/* Winning Trades */}
-          <div className="rounded-lg border border-emerald-700/40 bg-slate-900 p-4">
+          <div className="rounded-lg border border-emerald-700/40 bg-[var(--surface)] p-4">
             <h3 className="text-lg font-semibold text-emerald-300 mb-4">
               Winning Trades ({wins.length})
             </h3>
@@ -242,7 +242,7 @@ export default function WeatherCity() {
                 {wins.slice(0, 10).map((trade, index) => (
                   <div 
                     key={trade.id || index}
-                    className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+                    className="rounded-md border border-slate-800 bg-[var(--black)]/70 px-3 py-2"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
@@ -252,14 +252,14 @@ export default function WeatherCity() {
                           }`}>
                             {trade.side}
                           </span>
-                          <span className="text-emerald-400 text-sm font-medium">
+                          <span className="text-[var(--success)] text-sm font-medium">
                             {formatCurrency(trade.pnl)}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 mb-1">
+                        <p className="text-xs text-[var(--text-primary)] mb-1">
                           {trade.question || 'Unknown market'}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-[var(--text-disabled)]">
                           {formatDate(trade.event_date)} • {(trade.entry_price * 100).toFixed(0)}¢
                         </p>
                       </div>
@@ -267,18 +267,18 @@ export default function WeatherCity() {
                   </div>
                 ))}
                 {wins.length > 10 && (
-                  <p className="text-xs text-slate-500 text-center pt-2">
+                  <p className="text-xs text-[var(--text-disabled)] text-center pt-2">
                     ... and {wins.length - 10} more winning trades
                   </p>
                 )}
               </div>
             ) : (
-              <p className="text-slate-500 text-sm">No winning trades yet.</p>
+              <p className="text-[var(--text-disabled)] text-sm">No winning trades yet.</p>
             )}
           </div>
 
           {/* Losing Trades */}
-          <div className="rounded-lg border border-red-700/40 bg-slate-900 p-4">
+          <div className="rounded-lg border border-red-700/40 bg-[var(--surface)] p-4">
             <h3 className="text-lg font-semibold text-red-300 mb-4">
               Losing Trades ({losses.length})
             </h3>
@@ -287,7 +287,7 @@ export default function WeatherCity() {
                 {losses.slice(0, 10).map((trade, index) => (
                   <div 
                     key={trade.id || index}
-                    className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+                    className="rounded-md border border-slate-800 bg-[var(--black)]/70 px-3 py-2"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
@@ -297,14 +297,14 @@ export default function WeatherCity() {
                           }`}>
                             {trade.side}
                           </span>
-                          <span className="text-red-400 text-sm font-medium">
+                          <span className="text-[var(--accent)] text-sm font-medium">
                             {formatCurrency(trade.pnl)}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 mb-1">
+                        <p className="text-xs text-[var(--text-primary)] mb-1">
                           {trade.question || 'Unknown market'}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-[var(--text-disabled)]">
                           {formatDate(trade.event_date)} • {(trade.entry_price * 100).toFixed(0)}¢
                         </p>
                       </div>
@@ -312,13 +312,13 @@ export default function WeatherCity() {
                   </div>
                 ))}
                 {losses.length > 10 && (
-                  <p className="text-xs text-slate-500 text-center pt-2">
+                  <p className="text-xs text-[var(--text-disabled)] text-center pt-2">
                     ... and {losses.length - 10} more losing trades
                   </p>
                 )}
               </div>
             ) : (
-              <p className="text-slate-500 text-sm">No losing trades yet.</p>
+              <p className="text-[var(--text-disabled)] text-sm">No losing trades yet.</p>
             )}
           </div>
         </section>

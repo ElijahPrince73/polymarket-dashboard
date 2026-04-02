@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -104,8 +104,7 @@ function normalizeBtcTrades(btcTrades) {
     pnl: Number(trade?.pnl || 0),
     reason: String(trade?.exitReason || trade?.reason || '--'),
     sortTime:
-      new Date(trade?.exitTime || trade?.timestamp || trade?.entryTime || 0).getTime() ||
-      0,
+      new Date(trade?.exitTime || trade?.timestamp || trade?.entryTime || 0).getTime() || 0,
   }));
 }
 
@@ -126,17 +125,32 @@ function normalizeWeatherTrades(weatherTrades) {
 }
 
 function drawdownDomain(series) {
-  const min = Math.min(
-    ...series.map((item) => Number(item?.drawdown || 0)),
-    -0.1
-  );
+  const min = Math.min(...series.map((item) => Number(item?.drawdown || 0)), -0.1);
   return [Math.floor(min * 1.2), 0];
 }
 
-function MarketDot({ cx, cy, payload }) {
-  const market = String(payload?.market || 'combined').toLowerCase();
-  const fill = market === 'bitcoin' ? '#f97316' : market === 'weather' ? '#06b6d4' : '#10b981';
-  return <circle cx={cx} cy={cy} r={2.2} fill={fill} stroke="none" />;
+function chartGridProps() {
+  return {
+    stroke: 'var(--border-visible)',
+    vertical: false,
+  };
+}
+
+function chartAxisProps() {
+  return {
+    stroke: 'var(--text-secondary)',
+    tickLine: false,
+    axisLine: false,
+  };
+}
+
+function tooltipStyle() {
+  return {
+    backgroundColor: 'var(--surface)',
+    border: '1px solid var(--border-visible)',
+    borderRadius: 16,
+    color: 'var(--text-primary)',
+  };
 }
 
 export default function Portfolio() {
@@ -159,7 +173,6 @@ export default function Portfolio() {
       date: formatShortDate(point?.date),
       equity: Number(point?.equity || 0),
       drawdown: Number(point?.drawdown || 0),
-      market: String(point?.market || 'combined').toLowerCase(),
     }));
   }, [combined?.equitySeries]);
 
@@ -177,12 +190,12 @@ export default function Portfolio() {
   const btcOpenCount = extractBtcOpenPosition(btcStatus).length;
   const weatherOpenCount = normalizeWeatherOpenPositions(weatherTrades).length;
   const btcExposure =
-    Number(btcStatus?.openTrade?.stakeUsd || btcStatus?.openTrade?.stake || 0) /
-    Math.max(Number(btcMetrics?.equity || 1), 1) *
+    (Number(btcStatus?.openTrade?.stakeUsd || btcStatus?.openTrade?.stake || 0) /
+      Math.max(Number(btcMetrics?.equity || 1), 1)) *
     100;
   const weatherExposure =
-    normalizeWeatherOpenPositions(weatherTrades).reduce((sum, trade) => sum + trade.stake, 0) /
-    Math.max(Number(weatherMetrics?.equity || 1), 1) *
+    (normalizeWeatherOpenPositions(weatherTrades).reduce((sum, trade) => sum + trade.stake, 0) /
+      Math.max(Number(weatherMetrics?.equity || 1), 1)) *
     100;
 
   const killSwitchActive =
@@ -190,257 +203,182 @@ export default function Portfolio() {
     Boolean(btcStatus?.guardrails?.circuitBreakerTripped);
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-wrap gap-2">
-        <StatusPill
-          label="Mode"
-          value={String(btcStatus?.mode || 'PAPER')}
-          variant={String(btcStatus?.mode || 'PAPER').toUpperCase() === 'LIVE' ? 'warning' : 'neutral'}
-        />
-        <StatusPill
-          label="Trading"
-          value={btcStatus?.tradingEnabled ? 'ON' : 'OFF'}
-          variant={btcStatus?.tradingEnabled ? 'success' : 'danger'}
-        />
-        <StatusPill
-          label="Kill Switch"
-          value={killSwitchActive ? 'Active' : 'Inactive'}
-          variant={killSwitchActive ? 'danger' : 'success'}
-        />
-        <StatusPill
-          label="Uptime"
-          value={formatUptime(btcStatus?.status?._uptimeS || weatherStatus?.uptime || 0)}
-          variant="neutral"
-        />
-      </section>
+    <div className="space-y-8">
+      <section className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="nothing-section-title">Combined Portfolio</p>
+          <h1 className="nothing-page-title mt-3">System Balance</h1>
+          <p className="nothing-display mt-4 text-[48px] md:text-[64px]">
+            {loading ? '[LOADING...]' : formatCurrency(combinedMetrics?.equity)}
+          </p>
+        </div>
 
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-5">
-        <p className="text-xs uppercase tracking-wide text-slate-400">Performance Hero</p>
-        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <div className="md:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Total Equity</p>
-            <p className="mt-1 text-4xl font-bold tracking-tight text-slate-100">
-              {formatCurrency(combinedMetrics?.equity)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-400">Net P&amp;L</p>
-            <p
-              className={`mt-1 text-2xl font-semibold ${
-                Number(combinedMetrics?.totalPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-              }`}
-            >
-              {formatCurrency(combinedMetrics?.totalPnl)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-400">ROI</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-100">{formatPercent(combinedMetrics?.roi)}</p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-400">Today P&amp;L / Exposure</p>
-            <p
-              className={`mt-1 text-xl font-semibold ${
-                Number(combined?.todayPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-              }`}
-            >
-              {formatCurrency(combined?.todayPnl)}
-            </p>
-            <p className="mt-1 text-sm text-slate-300">Exposure: {formatPercent(combined?.totalExposurePct)}</p>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusPill
+            label="Mode"
+            value={String(btcStatus?.mode || 'PAPER')}
+            variant={String(btcStatus?.mode || 'PAPER').toUpperCase() === 'LIVE' ? 'warning' : 'neutral'}
+          />
+          <StatusPill
+            label="Trading"
+            value={btcStatus?.tradingEnabled ? 'ON' : 'OFF'}
+            variant={btcStatus?.tradingEnabled ? 'success' : 'danger'}
+          />
+          <StatusPill
+            label="Kill Switch"
+            value={killSwitchActive ? 'ON' : 'OFF'}
+            variant={killSwitchActive ? 'danger' : 'success'}
+          />
+          <StatusPill
+            label="Uptime"
+            value={formatUptime(btcStatus?.status?._uptimeS || weatherStatus?.uptime || 0)}
+            variant="neutral"
+          />
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-        <h2 className="mb-3 text-lg font-semibold">Equity &amp; Drawdown</h2>
-        <div className="grid grid-cols-1 gap-2">
-          <div className="h-64">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Net P&L" value={formatCurrency(combinedMetrics?.totalPnl)} color={Number(combinedMetrics?.totalPnl || 0) >= 0 ? 'profit' : 'loss'} />
+        <StatCard label="ROI" value={formatPercent(combinedMetrics?.roi)} />
+        <StatCard label="Today P&L" value={formatCurrency(combined?.todayPnl)} color={Number(combined?.todayPnl || 0) >= 0 ? 'profit' : 'loss'} />
+        <StatCard label="Exposure" value={formatPercent(combined?.totalExposurePct)} />
+      </section>
+
+      <section className="nothing-card p-5">
+        <div className="mb-4">
+          <p className="nothing-section-title">Equity Line</p>
+          <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">Equity & Drawdown</h2>
+        </div>
+        <div className="grid grid-cols-1 gap-4">
+          <div className="nothing-chart h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={equitySeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
+              <LineChart data={equitySeries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid {...chartGridProps()} />
                 <XAxis dataKey="date" hide />
                 <YAxis
-                  stroke="#94a3b8"
+                  {...chartAxisProps()}
                   tickFormatter={(value) => formatCurrency(value)}
                   width={88}
                   domain={['dataMin - 5', 'dataMax + 5']}
                 />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
-                  labelStyle={{ color: '#cbd5e1' }}
-                  formatter={(value) => formatCurrency(value)}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="equity"
-                  stroke="#10b981"
-                  fill="#10b981"
-                  fillOpacity={0.18}
-                  dot={<MarketDot />}
-                />
-              </AreaChart>
+                <Tooltip contentStyle={tooltipStyle()} formatter={(value) => formatCurrency(value)} />
+                <Line type="monotone" dataKey="equity" stroke="var(--text-display)" strokeWidth={2} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="h-44">
+          <div className="nothing-chart h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={equitySeries} margin={{ top: 0, right: 8, left: 0, bottom: 4 }}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
+              <LineChart data={equitySeries} margin={{ top: 0, right: 8, left: 0, bottom: 4 }}>
+                <CartesianGrid {...chartGridProps()} />
+                <XAxis dataKey="date" {...chartAxisProps()} />
                 <YAxis
-                  stroke="#94a3b8"
+                  {...chartAxisProps()}
                   tickFormatter={(value) => `${Number(value).toFixed(1)}%`}
                   width={72}
                   domain={drawdownDomain(equitySeries)}
                 />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
-                  labelStyle={{ color: '#cbd5e1' }}
-                  formatter={(value) => `${Number(value).toFixed(2)}%`}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="drawdown"
-                  stroke="#f87171"
-                  fill="#ef4444"
-                  fillOpacity={0.16}
-                />
-              </AreaChart>
+                <Tooltip contentStyle={tooltipStyle()} formatter={(value) => `${Number(value).toFixed(2)}%`} />
+                <Line type="monotone" dataKey="drawdown" stroke="var(--text-secondary)" strokeWidth={2} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <article className="rounded-lg border border-orange-500/40 bg-slate-900 p-4">
-          <h3 className="text-base font-semibold text-orange-400">Bitcoin</h3>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <p className="text-slate-400">Equity</p>
-            <p>{formatCurrency(btcMetrics?.equity)}</p>
-            <p className="text-slate-400">Net P&amp;L</p>
-            <p className={Number(btcMetrics?.totalPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-              {formatCurrency(btcMetrics?.totalPnl)}
-            </p>
-            <p className="text-slate-400">ROI</p>
-            <p>{formatPercent(btcMetrics?.roi)}</p>
-            <p className="text-slate-400">Open Positions</p>
-            <p>{String(btcOpenCount)}</p>
-            <p className="text-slate-400">Exposure</p>
-            <p>{formatPercent(btcExposure)}</p>
+        <article className="nothing-card p-5">
+          <p className="nothing-section-title">Bitcoin</p>
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between"><span className="nothing-label">Equity</span><span>{formatCurrency(btcMetrics?.equity)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">Net P&L</span><span className={Number(btcMetrics?.totalPnl || 0) >= 0 ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>{formatCurrency(btcMetrics?.totalPnl)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">ROI</span><span>{formatPercent(btcMetrics?.roi)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">Open Positions</span><span className="font-['Space_Mono']">{String(btcOpenCount)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">Exposure</span><span>{formatPercent(btcExposure)}</span></div>
           </div>
         </article>
 
-        <article className="rounded-lg border border-cyan-500/40 bg-slate-900 p-4">
-          <h3 className="text-base font-semibold text-cyan-400">Weather</h3>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <p className="text-slate-400">Equity</p>
-            <p>{formatCurrency(weatherMetrics?.equity)}</p>
-            <p className="text-slate-400">Net P&amp;L</p>
-            <p className={Number(weatherMetrics?.totalPnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-              {formatCurrency(weatherMetrics?.totalPnl)}
-            </p>
-            <p className="text-slate-400">ROI</p>
-            <p>{formatPercent(weatherMetrics?.roi)}</p>
-            <p className="text-slate-400">Open Positions</p>
-            <p>{String(weatherOpenCount)}</p>
-            <p className="text-slate-400">Exposure</p>
-            <p>{formatPercent(weatherExposure)}</p>
+        <article className="nothing-card p-5">
+          <p className="nothing-section-title">Weather</p>
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between"><span className="nothing-label">Equity</span><span>{formatCurrency(weatherMetrics?.equity)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">Net P&L</span><span className={Number(weatherMetrics?.totalPnl || 0) >= 0 ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>{formatCurrency(weatherMetrics?.totalPnl)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">ROI</span><span>{formatPercent(weatherMetrics?.roi)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">Open Positions</span><span className="font-['Space_Mono']">{String(weatherOpenCount)}</span></div>
+            <div className="flex items-center justify-between"><span className="nothing-label">Exposure</span><span>{formatPercent(weatherExposure)}</span></div>
           </div>
         </article>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard label="Max Drawdown" value={formatPercent(combinedMetrics?.maxDrawdown)} color="loss" />
         <StatCard label="Avg Win" value={formatCurrency(combinedMetrics?.avgWin)} color="profit" />
         <StatCard label="Avg Loss" value={formatCurrency(combinedMetrics?.avgLoss)} color="loss" />
         <StatCard label="Profit Factor" value={Number(combinedMetrics?.profitFactor || 0).toFixed(2)} />
-        <StatCard label="Longest Losing Streak" value={String(combinedMetrics?.longestLossStreak || 0)} />
+        <StatCard label="Losing Streak" value={String(combinedMetrics?.longestLossStreak || 0)} />
         <StatCard label="Avg Risk / Trade" value={formatPercent(combinedMetrics?.avgRiskPerTrade)} />
       </section>
 
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-        <h2 className="mb-3 text-lg font-semibold">Active Positions Combined</h2>
-        <div className="space-y-2">
+      <section className="nothing-card p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="nothing-section-title">Open Risk</p>
+            <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">Active Positions</h2>
+          </div>
+          <span className="nothing-meta">{openPositions.length} open</span>
+        </div>
+        <div className="space-y-3">
           {openPositions.map((position) => (
-            <article
-              key={position.id}
-              className="rounded-md border border-slate-700 bg-slate-950 p-3 text-sm"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                    position.market === 'bitcoin'
-                      ? 'bg-orange-500/20 text-orange-300'
-                      : 'bg-cyan-500/20 text-cyan-300'
-                  }`}
-                >
-                  {position.market === 'bitcoin' ? 'BTC' : 'Weather'}
-                </span>
-                <p className="font-medium text-slate-100">{position.question}</p>
+            <article key={position.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="nothing-tag inline-flex px-3 py-1">{position.market === 'bitcoin' ? 'BTC' : 'WEATHER'}</span>
+                <p className="text-[var(--text-display)]">{position.question}</p>
               </div>
-              <p className="mt-1 text-slate-300">
-                Side {position.side} | Stake {formatCurrency(position.stake)} | Entry {formatCurrency(position.entryPrice)}{' '}
-                | Opened {formatDateTime(position.createdAt)}
+              <p className="mt-3 font-['Space_Mono'] text-xs uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                Side {position.side} / Stake {formatCurrency(position.stake)} / Entry {formatCurrency(position.entryPrice)} / Opened {formatDateTime(position.createdAt)}
               </p>
             </article>
           ))}
           {!loading && openPositions.length === 0 ? (
-            <p className="text-sm text-slate-400">No active positions.</p>
+            <p className="font-['Space_Mono'] text-xs uppercase tracking-[0.08em] text-[var(--text-secondary)]">No active positions.</p>
           ) : null}
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-        <h2 className="mb-3 text-lg font-semibold">Recent Trades</h2>
-        <div className="overflow-x-auto rounded-md border border-slate-700">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-800 text-left text-slate-200">
-              <tr>
-                <th className="px-3 py-2">Market</th>
-                <th className="px-3 py-2">Exit Time</th>
-                <th className="px-3 py-2">Side</th>
-                <th className="px-3 py-2">Stake</th>
-                <th className="px-3 py-2">P&amp;L</th>
-                <th className="px-3 py-2">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTrades.map((trade) => (
-                <tr key={trade.id} className="border-t border-slate-700 bg-slate-950">
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                        trade.market === 'bitcoin'
-                          ? 'bg-orange-500/20 text-orange-300'
-                          : 'bg-cyan-500/20 text-cyan-300'
-                      }`}
-                    >
-                      {trade.market === 'bitcoin' ? 'BTC' : 'Weather'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-slate-300">{formatDateTime(trade.exitTime || trade.entryTime)}</td>
-                  <td className="px-3 py-2">{trade.side}</td>
-                  <td className="px-3 py-2 text-slate-300">{formatCurrency(trade.stake)}</td>
-                  <td
-                    className={`px-3 py-2 font-medium ${
-                      Number(trade.pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
-                  >
-                    {formatCurrency(trade.pnl)}
-                  </td>
-                  <td className="px-3 py-2 text-slate-300">{trade.reason}</td>
-                </tr>
-              ))}
-              {recentTrades.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-4 text-center text-slate-400">
-                    No trades available.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+      <section className="nothing-card overflow-x-auto">
+        <div className="border-b border-[var(--border)] p-5">
+          <p className="nothing-section-title">Trades</p>
+          <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">Recent Activity</h2>
         </div>
+        <table className="nothing-table min-w-full">
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Exit Time</th>
+              <th>Side</th>
+              <th>Stake</th>
+              <th>P&L</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentTrades.map((trade) => (
+              <tr key={trade.id}>
+                <td data-mono="true"><span className="nothing-tag inline-flex px-3 py-1">{trade.market === 'bitcoin' ? 'BTC' : 'WEATHER'}</span></td>
+                <td data-mono="true" className="text-[var(--text-secondary)]">{formatDateTime(trade.exitTime || trade.entryTime)}</td>
+                <td data-mono="true">{trade.side}</td>
+                <td data-mono="true">{formatCurrency(trade.stake)}</td>
+                <td data-mono="true" className={Number(trade.pnl || 0) >= 0 ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>{formatCurrency(trade.pnl)}</td>
+                <td>{trade.reason}</td>
+              </tr>
+            ))}
+            {recentTrades.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-[var(--text-secondary)]">No trades available.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
       </section>
     </div>
   );

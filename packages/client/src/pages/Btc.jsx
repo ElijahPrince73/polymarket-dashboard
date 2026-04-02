@@ -342,24 +342,24 @@ export function BtcDashboard({
   return (
     <div className="space-y-6">
       <section>
-        <h1 className="text-2xl font-semibold text-slate-100">{title}</h1>
+        <h1 className="nothing-page-title">{title}</h1>
       </section>
       {/* Live Mode Confirmation Dialog */}
       {showLiveConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="max-w-sm rounded-xl border border-orange-500/50 bg-slate-900 p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-orange-400">⚠️ Switch to Live Trading?</h3>
-            <p className="mt-2 text-sm text-slate-300">This will use real money. Current limits:</p>
-            <ul className="mt-2 space-y-1 text-sm text-slate-400">
-              <li>• Max per trade: <span className="text-white font-medium">${status?.liveTrading?.maxPerTradeUsd || 3}</span></li>
-              <li>• Max exposure: <span className="text-white font-medium">${status?.liveTrading?.maxOpenExposureUsd || 10}</span></li>
-              <li>• Daily loss limit: <span className="text-white font-medium">${status?.liveTrading?.maxDailyLossUsd || 30}</span></li>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <div className="max-w-sm rounded-xl border border-[var(--warning)] bg-[var(--surface)] p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-[var(--warning)]">⚠️ Switch to Live Trading?</h3>
+            <p className="mt-2 text-sm text-[var(--text-primary)]">This will use real money. Current limits:</p>
+            <ul className="mt-2 space-y-1 text-sm text-[var(--text-secondary)]">
+              <li>• Max per trade: <span className="text-[var(--text-display)] font-medium">${status?.liveTrading?.maxPerTradeUsd || 3}</span></li>
+              <li>• Max exposure: <span className="text-[var(--text-display)] font-medium">${status?.liveTrading?.maxOpenExposureUsd || 10}</span></li>
+              <li>• Daily loss limit: <span className="text-[var(--text-display)] font-medium">${status?.liveTrading?.maxDailyLossUsd || 30}</span></li>
             </ul>
             <div className="mt-4 flex gap-3">
-              <button onClick={confirmLiveMode} className="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-500">
+              <button onClick={confirmLiveMode} className="flex-1 rounded-lg bg-[var(--warning)] px-4 py-2 text-sm font-medium text-[var(--text-display)] hover:bg-[var(--warning)]">
                 Yes, Go Live
               </button>
-              <button onClick={() => setShowLiveConfirm(false)} className="flex-1 rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-600">
+              <button onClick={() => setShowLiveConfirm(false)} className="flex-1 rounded-lg bg-[var(--border-visible)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--border-visible)]">
                 Cancel
               </button>
             </div>
@@ -377,11 +377,11 @@ export function BtcDashboard({
         let bannerColor, bannerBg, bannerBorder, dotColor, statusText, statusDetail;
 
         if (!isTrading) {
-          bannerColor = 'text-red-400'; bannerBg = 'bg-red-950/40'; bannerBorder = 'border-red-500/30';
-          dotColor = 'bg-red-500'; statusText = 'STOPPED'; statusDetail = 'Trading is disabled';
+          bannerColor = 'text-[var(--accent)]'; bannerBg = 'bg-[var(--surface)]'; bannerBorder = 'border-[var(--border-visible)]';
+          dotColor = 'bg-[var(--accent)]'; statusText = 'STOPPED'; statusDetail = 'Trading is disabled';
         } else if (hasOpen) {
-          bannerColor = 'text-blue-400'; bannerBg = 'bg-blue-950/40'; bannerBorder = 'border-blue-500/30';
-          dotColor = 'bg-blue-500'; statusText = 'IN TRADE';
+          bannerColor = 'text-[var(--text-primary)]'; bannerBg = 'bg-[var(--surface)]'; bannerBorder = 'border-[var(--border-visible)]';
+          dotColor = 'bg-[var(--text-primary)]'; statusText = 'IN TRADE';
           const ot = status.openTrade;
           statusDetail = `${ot.side} @ ${(Number(ot.entryPrice || 0) * 100).toFixed(1)}¢ | PnL: $${Number(ot.unrealizedPnl || 0).toFixed(2)}`;
         } else if (inCooldown) {
@@ -389,16 +389,16 @@ export function BtcDashboard({
           const secs = match ? Number(match[1]) : 0;
           const mins = Math.floor(secs / 60);
           const remSecs = secs % 60;
-          bannerColor = 'text-yellow-400'; bannerBg = 'bg-yellow-950/40'; bannerBorder = 'border-yellow-500/30';
-          dotColor = 'bg-yellow-500'; statusText = 'COOLDOWN';
+          bannerColor = 'text-[var(--warning)]'; bannerBg = 'bg-[var(--surface)]'; bannerBorder = 'border-[var(--border-visible)]';
+          dotColor = 'bg-[var(--warning)]'; statusText = 'COOLDOWN';
           statusDetail = `${mins}:${String(remSecs).padStart(2, '0')} remaining`;
         } else if (outsideHours) {
-          bannerColor = 'text-slate-400'; bannerBg = 'bg-slate-800/60'; bannerBorder = 'border-slate-600/30';
-          dotColor = 'bg-slate-500'; statusText = 'OUTSIDE HOURS';
+          bannerColor = 'text-[var(--text-secondary)]'; bannerBg = 'bg-[var(--surface-raised)]/60'; bannerBorder = 'border-[var(--border-visible)]/30';
+          dotColor = 'bg-[var(--text-disabled)]'; statusText = 'OUTSIDE HOURS';
           statusDetail = '6 AM – 5 PM PST';
         } else {
-          bannerColor = 'text-emerald-400'; bannerBg = 'bg-emerald-950/40'; bannerBorder = 'border-emerald-500/30';
-          dotColor = 'bg-emerald-500'; statusText = 'TRADING';
+          bannerColor = 'text-[var(--success)]'; bannerBg = 'bg-[var(--surface)]'; bannerBorder = 'border-[var(--border)]';
+          dotColor = 'bg-[var(--success)]'; statusText = 'TRADING';
           statusDetail = 'Scanning for entries';
         }
 
@@ -409,21 +409,21 @@ export function BtcDashboard({
               <span className={`relative inline-flex h-3 w-3 rounded-full ${dotColor}`} />
             </span>
             <span className={`text-sm font-bold uppercase tracking-wider ${bannerColor}`}>{statusText}</span>
-            <span className="text-xs text-slate-400">{statusDetail}</span>
+            <span className="text-xs text-[var(--text-secondary)]">{statusDetail}</span>
 
             {/* Mode Toggle */}
             <div className="ml-auto flex flex-wrap items-center gap-2 md:gap-3">
               <button
                 onClick={() => isLive ? changeMode({ target: { value: 'paper' } }) : setShowLiveConfirm(true)}
                 className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
-                  isLive ? 'bg-orange-600' : 'bg-emerald-600'
+                  isLive ? 'bg-[var(--warning)]' : 'bg-[var(--text-display)]'
                 }`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
                   isLive ? 'translate-x-8' : 'translate-x-1'
                 }`} />
               </button>
-              <span className={`text-xs font-bold uppercase tracking-wider ${isLive ? 'text-orange-400' : 'text-emerald-400'}`}>
+              <span className={`text-xs font-bold uppercase tracking-wider ${isLive ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
                 {isLive ? 'LIVE' : 'PAPER'}
               </span>
 
@@ -431,10 +431,10 @@ export function BtcDashboard({
               <button
                 type="button"
                 onClick={isTrading ? stopTrading : startTrading}
-                className={`rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-colors ${
+                className={`rounded-lg px-4 py-1.5 text-sm font-medium text-[var(--text-display)] transition-colors ${
                   isTrading
-                    ? 'bg-red-600 hover:bg-red-500'
-                    : 'bg-emerald-600 hover:bg-emerald-500'
+                    ? 'bg-[var(--accent)] hover:bg-[var(--accent)]'
+                    : 'bg-[var(--text-display)] hover:bg-[var(--text-primary)]'
                 }`}
               >
                 {isTrading ? 'Stop' : 'Start'}
@@ -443,7 +443,7 @@ export function BtcDashboard({
                 <button
                   type="button"
                   onClick={forceCloseTrade}
-                  className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-500"
+                  className="rounded-lg bg-[var(--warning)] px-3 py-1.5 text-xs font-medium text-[var(--text-display)] hover:bg-[var(--warning)]"
                   title="Force close stuck trade"
                 >
                   Force Close
@@ -456,7 +456,7 @@ export function BtcDashboard({
 
       {/* Kill Switch Warning */}
       {killSwitch?.active && (
-        <div className="rounded-lg border border-red-500/50 bg-red-950/30 px-4 py-2 text-sm text-red-400">
+        <div className="rounded-lg border border-[var(--accent)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--accent)]">
           ⚠️ Kill switch active — trading halted due to daily loss limit
         </div>
       )}
@@ -476,13 +476,13 @@ export function BtcDashboard({
 
       {/* Redeemable Warning (if any) */}
       {redeemableCount > 0 && totalRedeemable > 0 && (
-        <div className="rounded-lg border border-red-500/50 bg-red-950/30 p-4 animate-pulse">
-          <div className="text-xs text-red-400 uppercase tracking-wide font-bold">⚠️ Stuck Tokens</div>
-          <div className="mt-1 text-lg font-semibold text-red-300">
+        <div className="rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4 animate-pulse">
+          <div className="text-xs text-[var(--accent)] uppercase tracking-wide font-bold">⚠️ Stuck Tokens</div>
+          <div className="mt-1 text-lg font-semibold text-[var(--accent)]">
             {formatCurrency(totalRedeemable)}
-            <span className="ml-2 text-xs text-red-400">({redeemableCount} redeemable)</span>
+            <span className="ml-2 text-xs text-[var(--accent)]">({redeemableCount} redeemable)</span>
           </div>
-          <div className="mt-1 text-xs text-red-400">
+          <div className="mt-1 text-xs text-[var(--accent)]">
             Go to Polymarket UI → Portfolio → Redeem
           </div>
         </div>
@@ -490,8 +490,8 @@ export function BtcDashboard({
 
       {/* Active Trade */}
       {status?.openTrade && (
-        <section className="rounded-lg border border-emerald-700/50 bg-emerald-950/20 p-4">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-emerald-400">Active Trade</h3>
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--success)]">Active Trade</h3>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
             {[
               ['Side', String(status.openTrade.side || '--')],
@@ -524,13 +524,13 @@ export function BtcDashboard({
               ['Entry Reason', String(status.openTrade.entryReason || '--')],
             ].map(([label, value]) => (
               <div key={label}>
-                <p className="text-slate-400">{label}</p>
+                <p className="text-[var(--text-secondary)]">{label}</p>
                 <p className={
                   label === 'Side'
-                    ? value === 'UP' ? 'font-semibold text-emerald-400' : 'font-semibold text-red-400'
+                    ? value === 'UP' ? 'font-semibold text-[var(--success)]' : 'font-semibold text-[var(--accent)]'
                     : label === 'Unrealized P&L'
-                      ? value.startsWith('+') ? 'font-semibold text-emerald-400' : value.startsWith('-') ? 'font-semibold text-red-400' : 'text-slate-200'
-                      : 'text-slate-200'
+                      ? value.startsWith('+') ? 'font-semibold text-[var(--success)]' : value.startsWith('-') ? 'font-semibold text-[var(--accent)]' : 'text-[var(--text-primary)]'
+                      : 'text-[var(--text-primary)]'
                 }>{value}</p>
               </div>
             ))}
@@ -540,18 +540,18 @@ export function BtcDashboard({
 
       {/* Live Market Info */}
       {status && (
-        <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Market</h3>
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Market</h3>
           <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
             <div>
-              <p className="text-slate-400">Market</p>
-              <p className="text-slate-200">
+              <p className="text-[var(--text-secondary)]">Market</p>
+              <p className="text-[var(--text-primary)]">
                 {status.runtime?.marketSlug ? (
                   <a
                     href={`https://polymarket.com/event/${status.runtime.marketSlug}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:underline"
+                    className="text-[var(--text-primary)] hover:underline"
                   >
                     {status.runtime.marketSlug.replace(marketPrefix, marketShortPrefix)}
                   </a>
@@ -559,32 +559,32 @@ export function BtcDashboard({
               </p>
             </div>
             <div>
-              <p className="text-slate-400">Time Left</p>
-              <p className="text-slate-200">{status.runtime?.timeLeftMin != null ? (() => { const m = Number(status.runtime.timeLeftMin); const mins = Math.floor(m); const secs = Math.round((m - mins) * 60); return `${mins}m ${secs}s`; })() : '--'}</p>
+              <p className="text-[var(--text-secondary)]">Time Left</p>
+              <p className="text-[var(--text-primary)]">{status.runtime?.timeLeftMin != null ? (() => { const m = Number(status.runtime.timeLeftMin); const mins = Math.floor(m); const secs = Math.round((m - mins) * 60); return `${mins}m ${secs}s`; })() : '--'}</p>
             </div>
             <div>
-              <p className="text-slate-400">BTC Price</p>
-              <p className="text-slate-200">{status.runtime?.btcPrice ? `$${Number(status.runtime.btcPrice).toLocaleString()}` : '--'}</p>
+              <p className="text-[var(--text-secondary)]">BTC Price</p>
+              <p className="text-[var(--text-primary)]">{status.runtime?.btcPrice ? `$${Number(status.runtime.btcPrice).toLocaleString()}` : '--'}</p>
             </div>
             <div>
-              <p className="text-slate-400">Poly Up / Down</p>
-              <p className="text-slate-200">
+              <p className="text-[var(--text-secondary)]">Poly Up / Down</p>
+              <p className="text-[var(--text-primary)]">
                 {status.runtime?.polyUp != null
                   ? `${(Number(status.runtime.polyUp) * 100).toFixed(1)}¢ / ${(Number(status.runtime.polyDown) * 100).toFixed(1)}¢`
                   : '--'}
               </p>
             </div>
             <div>
-              <p className="text-slate-400">Model</p>
-              <p className="text-slate-200">
+              <p className="text-[var(--text-secondary)]">Model</p>
+              <p className="text-[var(--text-primary)]">
                 {status.runtime?.modelUp != null
                   ? `Up ${(Number(status.runtime.modelUp) * 100).toFixed(1)}% / Down ${(Number(status.runtime.modelDown) * 100).toFixed(1)}%`
                   : '--'}
               </p>
             </div>
             <div>
-              <p className="text-slate-400">Session</p>
-              <p className="text-slate-200">{(() => {
+              <p className="text-[var(--text-secondary)]">Session</p>
+              <p className="text-[var(--text-primary)]">{(() => {
                 const h = new Date().getUTCHours();
                 if (h >= 0 && h < 8) return '🌏 Asia';
                 if (h >= 8 && h < 13) return '🇬🇧 London';
@@ -594,8 +594,8 @@ export function BtcDashboard({
               })()}</p>
             </div>
             <div>
-              <p className="text-slate-400">Orderbook</p>
-              <p className="text-slate-200">{(() => {
+              <p className="text-[var(--text-secondary)]">Orderbook</p>
+              <p className="text-[var(--text-primary)]">{(() => {
                 const ob = status.runtime?.momentumSignals?.orderbookImbalance;
                 if (ob == null) return '--';
                 if (ob > 0.1) return `🟢 Buyers (${(ob * 100).toFixed(0)}%)`;
@@ -604,12 +604,12 @@ export function BtcDashboard({
               })()}</p>
             </div>
             <div>
-              <p className="text-slate-400">Candles (1m)</p>
-              <p className="text-slate-200">{String(status.runtime?.candleCount ?? '--')}</p>
+              <p className="text-[var(--text-secondary)]">Candles (1m)</p>
+              <p className="text-[var(--text-primary)]">{String(status.runtime?.candleCount ?? '--')}</p>
             </div>
             <div>
-              <p className="text-slate-400">Schedule</p>
-              <p className="text-slate-200">
+              <p className="text-[var(--text-secondary)]">Schedule</p>
+              <p className="text-[var(--text-primary)]">
                 {status.entryThresholds?.pacificDay ?? '--'} {status.entryThresholds?.pacificHour != null ? `${status.entryThresholds.pacificHour}:00 PT` : ''}
                 {status.entryThresholds?.isWeekend ? ' (Weekend)' : ''}
               </p>
@@ -620,11 +620,11 @@ export function BtcDashboard({
 
       {/* Gate Status Table */}
       {status && (
-        <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Gate Status</h3>
-          <div className="overflow-x-auto rounded-md border border-slate-700">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-800 text-left text-slate-200">
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Gate Status</h3>
+          <div className="overflow-x-auto rounded-md border border-[var(--border)]">
+            <table className="nothing-table">
+              <thead className="bg-[var(--surface-raised)] text-left text-[var(--text-primary)]">
                 <tr>
                   <th className="px-4 py-2 font-medium">Check</th>
                   <th className="px-4 py-2 font-medium">Current</th>
@@ -633,33 +633,33 @@ export function BtcDashboard({
               </thead>
               <tbody>
                 {gateChecks.map((row, i) => (
-                  <tr key={row.check} className={i % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950'}>
-                    <td className="px-4 py-2 text-slate-300">{row.check}</td>
-                    <td className={`px-4 py-2 font-medium ${row.pass ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <tr key={row.check} className={i % 2 === 0 ? 'bg-[var(--surface)]' : 'bg-[var(--black)]'}>
+                    <td className="px-4 py-2 text-[var(--text-primary)]">{row.check}</td>
+                    <td className={`px-4 py-2 font-medium ${row.pass ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
                       {row.current}
                     </td>
-                    <td className="px-4 py-2 text-slate-400">{row.required}</td>
+                    <td className="px-4 py-2 text-[var(--text-secondary)]">{row.required}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {status.entryDebug?.eligible && (
-            <p className="mt-2 text-sm font-medium text-emerald-400">✓ Entry gate is open — ready to trade</p>
+            <p className="mt-2 text-sm font-medium text-[var(--success)]">✓ Entry gate is open — ready to trade</p>
           )}
         </section>
       )}
 
       {/* Chart / Trades Tabs */}
-      <section className="rounded-lg border border-slate-700 bg-slate-900">
-        <div className="flex gap-2 border-b border-slate-700 p-3">
+      <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+        <div className="flex gap-2 border-b border-[var(--border)] p-3">
           <button
             type="button"
             onClick={() => setActiveTab('dashboard')}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               activeTab === 'dashboard'
-                ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
-                : 'bg-slate-800 text-slate-300'
+                ? 'bg-[var(--surface-raised)] text-[var(--success)] '
+                : 'bg-[var(--surface-raised)] text-[var(--text-primary)]'
             }`}
           >
             Dashboard
@@ -669,8 +669,8 @@ export function BtcDashboard({
             onClick={() => setActiveTab('trades')}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               activeTab === 'trades'
-                ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40'
-                : 'bg-slate-800 text-slate-300'
+                ? 'bg-[var(--surface-raised)] text-[var(--success)] '
+                : 'bg-[var(--surface-raised)] text-[var(--text-primary)]'
             }`}
           >
             Trades
@@ -681,14 +681,14 @@ export function BtcDashboard({
           <div className="h-80 p-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                <XAxis dataKey="time" stroke="#94a3b8" minTickGap={30} />
-                <YAxis stroke="#94a3b8" tickFormatter={(v) => formatCurrency(v)} width={90} />
+                <CartesianGrid stroke="#222222" strokeDasharray="4 4" />
+                <XAxis dataKey="time" stroke="#999999" minTickGap={30} />
+                <YAxis stroke="#999999" tickFormatter={(v) => formatCurrency(v)} width={90} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: 8 }}
+                  contentStyle={{ backgroundColor: '#111111', border: '1px solid #222222', borderRadius: 8 }}
                   formatter={(v) => formatCurrency(v)}
                 />
-                <Line type="monotone" dataKey="pnl" stroke="#10b981" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="pnl" stroke="#FFFFFF" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -698,7 +698,7 @@ export function BtcDashboard({
               <select
                 value={sideFilter}
                 onChange={(e) => setSideFilter(e.target.value)}
-                className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
+                className="rounded-md border border-[var(--border-visible)] bg-[var(--surface-raised)] px-2 py-1 text-sm"
               >
                 <option value="ALL">Side: ALL</option>
                 <option value="UP">Side: UP</option>
@@ -708,7 +708,7 @@ export function BtcDashboard({
               <select
                 value={resultFilter}
                 onChange={(e) => setResultFilter(e.target.value)}
-                className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
+                className="rounded-md border border-[var(--border-visible)] bg-[var(--surface-raised)] px-2 py-1 text-sm"
               >
                 <option value="ALL">Result: ALL</option>
                 <option value="WIN">Result: WIN</option>
@@ -718,7 +718,7 @@ export function BtcDashboard({
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
+                className="rounded-md border border-[var(--border-visible)] bg-[var(--surface-raised)] px-2 py-1 text-sm"
               >
                 <option value={20}>Show: 20</option>
                 <option value={25}>Show: 25</option>
@@ -727,9 +727,9 @@ export function BtcDashboard({
               </select>
             </div>
 
-            <div className="overflow-x-auto rounded-md border border-slate-700">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-800 text-left text-slate-200">
+            <div className="overflow-x-auto rounded-md border border-[var(--border)]">
+              <table className="nothing-table">
+                <thead className="bg-[var(--surface-raised)] text-left text-[var(--text-primary)]">
                   <tr>
                     <th className="px-3 py-2">Entry Time</th>
                     <th className="px-3 py-2">Exit Time</th>
@@ -747,22 +747,22 @@ export function BtcDashboard({
                     return (
                       <tr
                         key={String(trade.id || `${trade.entryTime}-${index}`)}
-                        className={index % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950'}
+                        className={index % 2 === 0 ? 'bg-[var(--surface)]' : 'bg-[var(--black)]'}
                       >
                         <td className="px-3 py-2">{formatTime(trade.entryTime)}</td>
                         <td className="px-3 py-2">{formatTime(trade.exitTime || trade.timestamp)}</td>
                         <td className="px-3 py-2">{String(trade.side || '--')}</td>
                         <td className="px-3 py-2">{formatCurrency(trade.entryPrice)}</td>
                         <td className="px-3 py-2">{formatCurrency(trade.exitPrice)}</td>
-                        <td className={`px-3 py-2 ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <td className={`px-3 py-2 ${pnl >= 0 ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
                           {formatCurrency(pnl)}
                         </td>
                         <td className="px-3 py-2">
                           {trade.settlementSide
-                            ? <span className={trade.directionCorrect ? 'text-emerald-400' : 'text-red-400'}>
+                            ? <span className={trade.directionCorrect ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>
                                 {trade.settlementSide} {trade.directionCorrect ? '✅' : '❌'}
                               </span>
-                            : <span className="text-slate-500">--</span>
+                            : <span className="text-[var(--text-disabled)]">--</span>
                           }
                         </td>
                         <td className="px-3 py-2">{String(trade.exitReason || '--')}</td>

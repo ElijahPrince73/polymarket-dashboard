@@ -1,11 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -52,7 +49,7 @@ function normalizeSeries(rawSeries, normalized) {
   const base = series[0].equity || 1;
   return series.map((point) => ({
     ...point,
-    equity: ((point.equity / base) * 100),
+    equity: (point.equity / base) * 100,
   }));
 }
 
@@ -81,6 +78,30 @@ function distributionToBars(bucketMap) {
 function valueForComparison(metric, value) {
   if (metric === 'maxDrawdown') return -Math.abs(toNumber(value));
   return toNumber(value);
+}
+
+function chartFrameProps() {
+  return {
+    stroke: 'var(--border-visible)',
+    vertical: false,
+  };
+}
+
+function chartAxisProps() {
+  return {
+    stroke: 'var(--text-secondary)',
+    tickLine: false,
+    axisLine: false,
+  };
+}
+
+function tooltipStyle() {
+  return {
+    backgroundColor: 'var(--surface)',
+    border: '1px solid var(--border-visible)',
+    borderRadius: 16,
+    color: 'var(--text-primary)',
+  };
 }
 
 export default function Compare() {
@@ -114,29 +135,11 @@ export default function Compare() {
 
   const comparisonMetrics = [
     { key: 'equity', label: 'Equity', fmt: formatCurrency, btc: btcMetrics?.equity, weather: weatherMetrics?.equity },
-    { key: 'roi', label: 'ROI %', fmt: formatPercent, btc: btcMetrics?.roi, weather: weatherMetrics?.roi },
-    {
-      key: 'maxDrawdown',
-      label: 'Max Drawdown',
-      fmt: formatPercent,
-      btc: btcMetrics?.maxDrawdown,
-      weather: weatherMetrics?.maxDrawdown,
-    },
-    {
-      key: 'profitFactor',
-      label: 'Profit Factor',
-      fmt: (v) => Number(v || 0).toFixed(2),
-      btc: btcMetrics?.profitFactor,
-      weather: weatherMetrics?.profitFactor,
-    },
-    {
-      key: 'winRate',
-      label: 'Win Rate',
-      fmt: formatPercent,
-      btc: btcMetrics?.winRate,
-      weather: weatherMetrics?.winRate,
-    },
-    { key: 'exposure', label: 'Exposure %', fmt: formatPercent, btc: btcOpenExposure, weather: weatherOpenExposure },
+    { key: 'roi', label: 'ROI', fmt: formatPercent, btc: btcMetrics?.roi, weather: weatherMetrics?.roi },
+    { key: 'maxDrawdown', label: 'Max Drawdown', fmt: formatPercent, btc: btcMetrics?.maxDrawdown, weather: weatherMetrics?.maxDrawdown },
+    { key: 'profitFactor', label: 'Profit Factor', fmt: (v) => Number(v || 0).toFixed(2), btc: btcMetrics?.profitFactor, weather: weatherMetrics?.profitFactor },
+    { key: 'winRate', label: 'Win Rate', fmt: formatPercent, btc: btcMetrics?.winRate, weather: weatherMetrics?.winRate },
+    { key: 'exposure', label: 'Exposure', fmt: formatPercent, btc: btcOpenExposure, weather: weatherOpenExposure },
   ];
 
   const equityComparisonData = useMemo(() => {
@@ -169,8 +172,27 @@ export default function Compare() {
   );
 
   return (
-    <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="space-y-8">
+      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="nothing-section-title">Strategy Compare</p>
+          <h1 className="nothing-page-title mt-3">Bitcoin vs Weather</h1>
+        </div>
+        <label className="flex items-center gap-3">
+          <span className="nothing-label">Normalized</span>
+          <button
+            type="button"
+            onClick={() => setNormalized((current) => !current)}
+            className="nothing-toggle"
+            data-active={normalized}
+            aria-pressed={normalized}
+          >
+            <span className="nothing-toggle-thumb" />
+          </button>
+        </label>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {comparisonMetrics.map((metric) => {
           const btcScore = valueForComparison(metric.key, metric.btc);
           const weatherScore = valueForComparison(metric.key, metric.weather);
@@ -178,20 +200,20 @@ export default function Compare() {
           const weatherBetter = weatherScore > btcScore;
 
           return (
-            <article key={metric.key} className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-400">{metric.label}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div className={`rounded border p-2 ${btcBetter ? 'border-orange-500/60 bg-orange-500/10' : 'border-slate-700'}`}>
-                  <p className="text-xs text-orange-300">BTC</p>
-                  <p className="font-semibold text-slate-100">{metric.fmt(metric.btc)}</p>
+            <article key={metric.key} className="nothing-card p-5">
+              <p className="nothing-label">{metric.label}</p>
+              <div className="mt-5 space-y-4">
+                <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
+                  <span className="nothing-meta">BTC</span>
+                  <span className={btcBetter ? 'text-[var(--text-display)]' : 'text-[var(--text-primary)]'}>
+                    {metric.fmt(metric.btc)}
+                  </span>
                 </div>
-                <div
-                  className={`rounded border p-2 ${
-                    weatherBetter ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-slate-700'
-                  }`}
-                >
-                  <p className="text-xs text-cyan-300">Weather</p>
-                  <p className="font-semibold text-slate-100">{metric.fmt(metric.weather)}</p>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="nothing-meta">Weather</span>
+                  <span className={weatherBetter ? 'text-[var(--text-display)]' : 'text-[var(--text-primary)]'}>
+                    {metric.fmt(metric.weather)}
+                  </span>
                 </div>
               </div>
             </article>
@@ -199,112 +221,92 @@ export default function Compare() {
         })}
       </section>
 
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Equity Comparison</h2>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-            <input
-              type="checkbox"
-              checked={normalized}
-              onChange={(event) => setNormalized(event.target.checked)}
-              className="h-4 w-4 accent-emerald-500"
-            />
-            Normalized (start at 100)
-          </label>
+      <section className="nothing-card p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="nothing-section-title">Equity</p>
+            <h2 className="mt-2 text-xl font-medium text-[var(--text-display)]">Comparative Curve</h2>
+          </div>
+          <span className="nothing-meta">{normalized ? 'Base 100' : 'Absolute USD'}</span>
         </div>
-        <div className="h-72">
+        <div className="nothing-chart h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={equityComparisonData}>
-              <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-              <XAxis dataKey="date" stroke="#94a3b8" />
+              <CartesianGrid {...chartFrameProps()} />
+              <XAxis dataKey="date" {...chartAxisProps()} />
               <YAxis
-                stroke="#94a3b8"
+                {...chartAxisProps()}
                 tickFormatter={(value) => (normalized ? `${Number(value).toFixed(1)}%` : formatCurrency(value))}
               />
               <Tooltip
-                contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
-                labelStyle={{ color: '#cbd5e1' }}
+                contentStyle={tooltipStyle()}
                 formatter={(value) => (normalized ? `${Number(value).toFixed(2)}%` : formatCurrency(value))}
               />
-              <Line type="monotone" dataKey="btc" stroke="#f97316" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="weather" stroke="#06b6d4" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="btc" stroke="var(--text-display)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="weather" stroke="var(--text-secondary)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <article className="rounded-lg border border-orange-500/40 bg-slate-900 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-orange-300">BTC Drawdown</h3>
-          <div className="h-44">
+        <article className="nothing-card p-5">
+          <p className="nothing-section-title">BTC Drawdown</p>
+          <div className="nothing-chart mt-4 h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={btcDrawdown}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" tickFormatter={(value) => `${Number(value).toFixed(1)}%`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
-                  formatter={(value) => `${Number(value).toFixed(2)}%`}
-                />
-                <Area dataKey="drawdown" type="monotone" stroke="#f97316" fill="#f97316" fillOpacity={0.15} />
-              </AreaChart>
+              <LineChart data={btcDrawdown}>
+                <CartesianGrid {...chartFrameProps()} />
+                <XAxis dataKey="date" {...chartAxisProps()} />
+                <YAxis {...chartAxisProps()} tickFormatter={(value) => `${Number(value).toFixed(1)}%`} />
+                <Tooltip contentStyle={tooltipStyle()} formatter={(value) => `${Number(value).toFixed(2)}%`} />
+                <Line type="monotone" dataKey="drawdown" stroke="var(--text-display)" strokeWidth={2} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </article>
 
-        <article className="rounded-lg border border-cyan-500/40 bg-slate-900 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-cyan-300">Weather Drawdown</h3>
-          <div className="h-44">
+        <article className="nothing-card p-5">
+          <p className="nothing-section-title">Weather Drawdown</p>
+          <div className="nothing-chart mt-4 h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weatherDrawdown}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                <XAxis dataKey="date" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" tickFormatter={(value) => `${Number(value).toFixed(1)}%`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }}
-                  formatter={(value) => `${Number(value).toFixed(2)}%`}
-                />
-                <Area dataKey="drawdown" type="monotone" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.15} />
-              </AreaChart>
+              <LineChart data={weatherDrawdown}>
+                <CartesianGrid {...chartFrameProps()} />
+                <XAxis dataKey="date" {...chartAxisProps()} />
+                <YAxis {...chartAxisProps()} tickFormatter={(value) => `${Number(value).toFixed(1)}%`} />
+                <Tooltip contentStyle={tooltipStyle()} formatter={(value) => `${Number(value).toFixed(2)}%`} />
+                <Line type="monotone" dataKey="drawdown" stroke="var(--text-secondary)" strokeWidth={2} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </article>
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <article className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-orange-300">BTC P&amp;L Distribution</h3>
-          <div className="h-64">
+        <article className="nothing-card p-5">
+          <p className="nothing-section-title">BTC Distribution</p>
+          <div className="nothing-chart mt-4 h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={btcDistribution}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                <XAxis dataKey="bucket" stroke="#94a3b8" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis stroke="#94a3b8" domain={[0, maxDistributionY]} />
-                <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }} />
-                <Bar dataKey="count">
-                  {btcDistribution.map((entry) => (
-                    <Cell key={`btc-${entry.bucket}`} fill={entry.center >= 0 ? '#34d399' : '#f87171'} />
-                  ))}
-                </Bar>
+                <CartesianGrid {...chartFrameProps()} />
+                <XAxis dataKey="bucket" {...chartAxisProps()} interval={0} angle={-15} textAnchor="end" height={60} />
+                <YAxis {...chartAxisProps()} domain={[0, maxDistributionY]} />
+                <Tooltip contentStyle={tooltipStyle()} />
+                <Bar dataKey="count" fill="var(--text-display)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </article>
 
-        <article className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <h3 className="mb-2 text-sm font-semibold text-cyan-300">Weather P&amp;L Distribution</h3>
-          <div className="h-64">
+        <article className="nothing-card p-5">
+          <p className="nothing-section-title">Weather Distribution</p>
+          <div className="nothing-chart mt-4 h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weatherDistribution}>
-                <CartesianGrid stroke="#334155" strokeDasharray="4 4" />
-                <XAxis dataKey="bucket" stroke="#94a3b8" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis stroke="#94a3b8" domain={[0, maxDistributionY]} />
-                <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: 8 }} />
-                <Bar dataKey="count">
-                  {weatherDistribution.map((entry) => (
-                    <Cell key={`weather-${entry.bucket}`} fill={entry.center >= 0 ? '#34d399' : '#f87171'} />
-                  ))}
-                </Bar>
+                <CartesianGrid {...chartFrameProps()} />
+                <XAxis dataKey="bucket" {...chartAxisProps()} interval={0} angle={-15} textAnchor="end" height={60} />
+                <YAxis {...chartAxisProps()} domain={[0, maxDistributionY]} />
+                <Tooltip contentStyle={tooltipStyle()} />
+                <Bar dataKey="count" fill="var(--text-secondary)" />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -218,19 +218,19 @@ export default function Weather() {
       {/* Live Mode Confirmation Dialog */}
       {showLiveConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="max-w-sm rounded-xl border border-orange-500/50 bg-slate-900 p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-orange-400">⚠️ Switch to Live Trading?</h3>
-            <p className="mt-2 text-sm text-slate-300">This will use real USDC from your Polymarket wallet.</p>
-            <ul className="mt-2 space-y-1 text-sm text-slate-400">
-              <li>• Max per trade: <span className="text-white font-medium">4% of bankroll</span></li>
-              <li>• Max daily exposure: <span className="text-white font-medium">25%</span></li>
-              <li>• Daily loss stop: <span className="text-white font-medium">5%</span></li>
+          <div className="max-w-sm rounded-xl border border-orange-500/50 bg-[var(--surface)] p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-[var(--warning)]">⚠️ Switch to Live Trading?</h3>
+            <p className="mt-2 text-sm text-[var(--text-primary)]">This will use real USDC from your Polymarket wallet.</p>
+            <ul className="mt-2 space-y-1 text-sm text-[var(--text-secondary)]">
+              <li>• Max per trade: <span className="text-[var(--text-display)] font-medium">4% of bankroll</span></li>
+              <li>• Max daily exposure: <span className="text-[var(--text-display)] font-medium">25%</span></li>
+              <li>• Daily loss stop: <span className="text-[var(--text-display)] font-medium">5%</span></li>
             </ul>
             <div className="mt-4 flex gap-3">
-              <button onClick={confirmLiveMode} className="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-500">
+              <button onClick={confirmLiveMode} className="flex-1 rounded-lg bg-[var(--warning)] px-4 py-2 text-sm font-medium text-[var(--text-display)] hover:bg-[var(--warning)]">
                 Yes, Go Live
               </button>
-              <button onClick={() => setShowLiveConfirm(false)} className="flex-1 rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-600">
+              <button onClick={() => setShowLiveConfirm(false)} className="flex-1 rounded-lg bg-[var(--border-visible)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-slate-600">
                 Cancel
               </button>
             </div>
@@ -243,10 +243,10 @@ export default function Weather() {
         let bannerColor, bannerBg, bannerBorder, dotColor, statusText, statusDetail;
 
         if (!isTrading) {
-          bannerColor = 'text-red-400'; bannerBg = 'bg-red-950/40'; bannerBorder = 'border-red-500/30';
+          bannerColor = 'text-[var(--accent)]'; bannerBg = 'bg-red-950/40'; bannerBorder = 'border-red-500/30';
           dotColor = 'bg-red-500'; statusText = 'STOPPED'; statusDetail = 'Trading is disabled';
         } else {
-          bannerColor = 'text-emerald-400'; bannerBg = 'bg-emerald-950/40'; bannerBorder = 'border-emerald-500/30';
+          bannerColor = 'text-[var(--success)]'; bannerBg = 'bg-emerald-950/40'; bannerBorder = 'border-emerald-500/30';
           dotColor = 'bg-emerald-500'; statusText = 'TRADING';
           statusDetail = status?.lastTickAt
             ? `Last tick: ${new Date(status.lastTickAt).toLocaleTimeString()}`
@@ -260,21 +260,21 @@ export default function Weather() {
               <span className={`relative inline-flex h-3 w-3 rounded-full ${dotColor}`} />
             </span>
             <span className={`text-sm font-bold uppercase tracking-wider ${bannerColor}`}>{statusText}</span>
-            <span className="text-xs text-slate-400">{statusDetail}</span>
+            <span className="text-xs text-[var(--text-secondary)]">{statusDetail}</span>
 
             <div className="ml-auto flex flex-wrap items-center gap-2 md:gap-3">
               {/* Paper/Live Toggle Switch */}
               <button
                 onClick={() => isLive ? changeMode('paper') : setShowLiveConfirm(true)}
                 className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${
-                  isLive ? 'bg-orange-600' : 'bg-emerald-600'
+                  isLive ? 'bg-[var(--warning)]' : 'bg-[var(--text-display)]'
                 }`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
                   isLive ? 'translate-x-8' : 'translate-x-1'
                 }`} />
               </button>
-              <span className={`text-xs font-bold uppercase tracking-wider ${isLive ? 'text-orange-400' : 'text-emerald-400'}`}>
+              <span className={`text-xs font-bold uppercase tracking-wider ${isLive ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
                 {isLive ? 'LIVE' : 'PAPER'}
               </span>
 
@@ -282,10 +282,10 @@ export default function Weather() {
               <button
                 type="button"
                 onClick={isTrading ? handleStop : handleStart}
-                className={`rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-colors ${
+                className={`rounded-lg px-4 py-1.5 text-sm font-medium text-[var(--text-display)] transition-colors ${
                   isTrading
-                    ? 'bg-red-600 hover:bg-red-500'
-                    : 'bg-emerald-600 hover:bg-emerald-500'
+                    ? 'bg-[var(--accent)] hover:bg-[var(--accent)]'
+                    : 'bg-[var(--text-display)] hover:bg-[var(--text-primary)]'
                 }`}
               >
                 {isTrading ? 'Stop' : 'Start'}
@@ -295,7 +295,7 @@ export default function Weather() {
               <button
                 type="button"
                 onClick={handleTick}
-                className="rounded-lg bg-slate-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-600"
+                className="rounded-lg bg-[var(--border-visible)] px-4 py-1.5 text-sm font-medium text-[var(--text-display)] hover:bg-slate-600"
               >
                 Run Tick
               </button>
@@ -304,7 +304,7 @@ export default function Weather() {
               <button
                 type="button"
                 onClick={handleSync}
-                className="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-600"
+                className="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-[var(--text-display)] hover:bg-blue-600"
               >
                 Sync DB
               </button>
@@ -328,27 +328,27 @@ export default function Weather() {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {!isLive && paperTrades.length > 0 && (
-          <section className="rounded-lg border border-yellow-700/40 bg-slate-900 p-4">
+          <section className="rounded-lg border border-yellow-700/40 bg-[var(--surface)] p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-yellow-300">Paper Trades</h2>
               <span className="rounded-full bg-yellow-900/60 px-3 py-1 text-xs font-medium text-yellow-300">
                 {paperTrades.length} paper
               </span>
             </div>
-            <p className="mb-3 text-xs text-slate-400">
+            <p className="mb-3 text-xs text-[var(--text-secondary)]">
               Simulated trades — no real orders on Polymarket.
             </p>
             <div className="space-y-2">
               {paperTrades.map((trade) => (
                 <div
                   key={trade.id}
-                  className="flex items-center justify-between rounded-md border border-slate-700 bg-slate-800 px-3 py-2"
+                  className="flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2"
                 >
                   <div className="flex-1">
                     <div className="mb-1 flex items-center gap-2">
                       <Link
                         to={`/weather/${encodeURIComponent(trade.city)}`}
-                        className="text-sm font-medium text-slate-100 hover:text-blue-400"
+                        className="text-sm font-medium text-[var(--text-display)] hover:text-[var(--text-primary)]"
                       >
                         {trade.city}
                       </Link>
@@ -357,19 +357,19 @@ export default function Weather() {
                       }`}>
                         {trade.side}
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-[var(--text-secondary)]">
                         @ {formatPriceCents(trade.entry_price)}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 break-words">
+                    <p className="text-xs text-[var(--text-secondary)] break-words">
                       {trade.question}
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium text-slate-100">
+                    <div className="text-sm font-medium text-[var(--text-display)]">
                       {formatCurrency(trade.stake_usd)}
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-[var(--text-secondary)]">
                       {trade.event_date}
                     </div>
                   </div>
@@ -380,13 +380,13 @@ export default function Weather() {
         )}
 
         {isLive && (
-          <article className="rounded-lg border border-emerald-700/40 bg-slate-900 p-4">
+          <article className="rounded-lg border border-emerald-700/40 bg-[var(--surface)] p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-100">Live Orders</h2>
-                <p className="text-xs text-slate-400">All active orders on Polymarket (filled + pending).</p>
+                <h2 className="text-lg font-semibold text-[var(--text-display)]">Live Orders</h2>
+                <p className="text-xs text-[var(--text-secondary)]">All active orders on Polymarket (filled + pending).</p>
               </div>
-              <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
+              <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-[var(--success)]">
                 {openPositions.length} live
               </span>
             </div>
@@ -394,15 +394,15 @@ export default function Weather() {
               {openPositions.length > 0 ? openPositions.map((trade, index) => (
                 <div
                   key={String(trade.id || trade.order_id || `open-position-${index}`)}
-                  className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+                  className="rounded-md border border-slate-800 bg-[var(--black)]/70 px-3 py-2"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-200">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">
                         {formatShareCount(trade.shares || trade.actualPosition)}{' '}
                         <Link 
                           to={`/weather/${encodeURIComponent(trade.city || 'Unknown')}`}
-                          className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                          className="text-[var(--success)] hover:text-[var(--success)] transition-colors"
                         >
                           {String(trade.city || 'Unknown')}
                         </Link>{' '}
@@ -415,25 +415,25 @@ export default function Weather() {
                           </span>
                         )}
                       </p>
-                      <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
+                      <p className="mt-1 text-xs text-[var(--text-secondary)]">{String(trade.question || '--')}</p>
                     </div>
-                    <div className="text-right text-xs text-slate-400">
+                    <div className="text-right text-xs text-[var(--text-secondary)]">
                       <p>{formatDate(trade.event_date || trade.created_at)}</p>
                     </div>
                   </div>
                 </div>
               )) : (
-                <p className="text-sm text-slate-500">No filled positions right now.</p>
+                <p className="text-sm text-[var(--text-disabled)]">No filled positions right now.</p>
               )}
             </div>
           </article>
         )}
 
-        <article className="rounded-lg border border-amber-700/40 bg-slate-900 p-4">
+        <article className="rounded-lg border border-amber-700/40 bg-[var(--surface)] p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-100">Pending Orders</h2>
-              <p className="text-xs text-slate-400">Resting orders on the book. Collateral is reserved, but exposure is not filled yet.</p>
+              <h2 className="text-lg font-semibold text-[var(--text-display)]">Pending Orders</h2>
+              <p className="text-xs text-[var(--text-secondary)]">Resting orders on the book. Collateral is reserved, but exposure is not filled yet.</p>
             </div>
             <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300">
               {pendingOrders.length} active
@@ -443,30 +443,30 @@ export default function Weather() {
             {pendingOrders.length > 0 ? pendingOrders.map((trade, index) => (
               <div
                 key={String(trade.order_id || trade.id || `pending-order-${index}`)}
-                className="rounded-md border border-slate-800 bg-slate-950/70 px-3 py-2"
+                className="rounded-md border border-slate-800 bg-[var(--black)]/70 px-3 py-2"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-200">
+                    <p className="text-sm font-medium text-[var(--text-primary)]">
                       {formatShareCount(trade.pendingOrderSize)} pending{' '}
                       <Link 
                         to={`/weather/${encodeURIComponent(trade.city || 'Unknown')}`}
-                        className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                        className="text-[var(--success)] hover:text-[var(--success)] transition-colors"
                       >
                         {String(trade.city || 'Unknown')}
                       </Link>{' '}
                       {String(trade.side || '--')} @ {formatPriceCents(trade.entry_price)}
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">{String(trade.question || '--')}</p>
+                    <p className="mt-1 text-xs text-[var(--text-secondary)]">{String(trade.question || '--')}</p>
                   </div>
-                  <div className="text-right text-xs text-slate-400">
+                  <div className="text-right text-xs text-[var(--text-secondary)]">
                     <p>{formatDate(trade.event_date || trade.created_at)}</p>
                     <p>{trade.order_id ? `Order ${String(trade.order_id).slice(0, 10)}` : `Live orders ${openOrderCount}`}</p>
                   </div>
                 </div>
               </div>
             )) : (
-              <p className="text-sm text-slate-500">No active resting orders.</p>
+              <p className="text-sm text-[var(--text-disabled)]">No active resting orders.</p>
             )}
           </div>
         </article>
@@ -508,26 +508,26 @@ export default function Weather() {
               return (
                 <article
                   key={row.city}
-                  className={`rounded-lg border bg-slate-900 p-4 ${
-                    cityOpen.length > 0 ? 'border-emerald-700/50' : 'border-slate-700'
+                  className={`rounded-lg border bg-[var(--surface)] p-4 ${
+                    cityOpen.length > 0 ? 'border-emerald-700/50' : 'border-[var(--border)]'
                   }`}
                 >
                   {/* City header row */}
                   <div className="flex items-center justify-between">
                     <Link 
                       to={`/weather/${encodeURIComponent(row.city)}`}
-                      className="text-sm font-semibold text-slate-200 hover:text-emerald-400 transition-colors"
+                      className="text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--success)] transition-colors"
                     >
                       {row.city}
                     </Link>
                     <div className="flex items-center gap-3 text-xs">
                       {cityOpen.length > 0 && (
-                        <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-emerald-400">
+                        <span className="rounded-full bg-[var(--surface-raised)] px-2 py-0.5 text-[var(--success)]">
                           {cityOpen.length} open
                         </span>
                       )}
                       {hasTrades && (
-                        <span className={row.pnl >= 0 ? 'font-semibold text-emerald-400' : 'font-semibold text-red-400'}>
+                        <span className={row.pnl >= 0 ? 'font-semibold text-[var(--success)]' : 'font-semibold text-[var(--accent)]'}>
                           {formatCurrency(row.pnl)}
                         </span>
                       )}
@@ -536,7 +536,7 @@ export default function Weather() {
 
                   {/* Stats row */}
                   {hasTrades && (
-                    <div className="mt-2 flex gap-4 text-xs text-slate-400">
+                    <div className="mt-2 flex gap-4 text-xs text-[var(--text-secondary)]">
                       <span>{row.wins}W / {row.losses}L</span>
                       <span>WR: {wr}%</span>
                       <span>{row.trades} trades</span>
@@ -545,14 +545,14 @@ export default function Weather() {
 
                   {/* Open positions for this city */}
                   {cityOpen.length > 0 && (
-                    <div className="mt-3 space-y-1.5 border-t border-slate-700/50 pt-2">
+                    <div className="mt-3 space-y-1.5 border-t border-[var(--border)]/50 pt-2">
                       {cityOpen.map((trade, i) => {
                         const q = String(trade.question || '').replace(/Will the (highest|lowest) temperature in \w[\w\s]* be /i, '');
                         return (
                           <div key={String(trade.id || `${row.city}-${i}`)} className="flex items-center justify-between text-xs">
-                            <span className="text-slate-300 truncate max-w-[60%]" title={trade.question}>{q || '--'}</span>
-                            <div className="flex items-center gap-2 text-slate-400">
-                              <span className={trade.side === 'YES' ? 'text-emerald-400' : 'text-red-400'}>{trade.side}</span>
+                            <span className="text-[var(--text-primary)] truncate max-w-[60%]" title={trade.question}>{q || '--'}</span>
+                            <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                              <span className={trade.side === 'YES' ? 'text-[var(--success)]' : 'text-[var(--accent)]'}>{trade.side}</span>
                               <span>@{Number(trade.entry_price || 0).toFixed(2)}</span>
                               <span>{formatCurrency(trade.stake_usd)}</span>
                             </div>
@@ -564,7 +564,7 @@ export default function Weather() {
 
                   {/* No data state */}
                   {!hasTrades && cityOpen.length === 0 && (
-                    <p className="mt-2 text-xs text-slate-500">No trades yet</p>
+                    <p className="mt-2 text-xs text-[var(--text-disabled)]">No trades yet</p>
                   )}
                 </article>
               );
@@ -573,13 +573,13 @@ export default function Weather() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+      <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
         <h2 className="mb-3 text-lg font-semibold">Resolved Trades</h2>
         <div className="mb-3 flex flex-wrap gap-2">
           <select
             value={cityFilter}
             onChange={(e) => setCityFilter(e.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
+            className="rounded-md border border-[var(--border-visible)] bg-[var(--surface-raised)] px-2 py-1 text-sm"
           >
             <option value="ALL">City: ALL</option>
             {allCities.map((city) => (
@@ -592,7 +592,7 @@ export default function Weather() {
           <select
             value={resultFilter}
             onChange={(e) => setResultFilter(e.target.value)}
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
+            className="rounded-md border border-[var(--border-visible)] bg-[var(--surface-raised)] px-2 py-1 text-sm"
           >
             <option value="ALL">Result: ALL</option>
             <option value="WIN">Result: WIN</option>
@@ -602,7 +602,7 @@ export default function Weather() {
           <select
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value))}
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm"
+            className="rounded-md border border-[var(--border-visible)] bg-[var(--surface-raised)] px-2 py-1 text-sm"
           >
             <option value={20}>Show: 20</option>
             <option value={25}>Show: 25</option>
@@ -611,9 +611,9 @@ export default function Weather() {
           </select>
         </div>
 
-        <div className="overflow-x-auto rounded-md border border-slate-700">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-800 text-left text-slate-200">
+        <div className="overflow-x-auto rounded-md border border-[var(--border)]">
+          <table className="nothing-table">
+            <thead className="bg-[var(--surface-raised)] text-left text-[var(--text-primary)]">
               <tr>
                 <th className="px-3 py-2">City</th>
                 <th className="px-3 py-2">Date</th>
@@ -629,12 +629,12 @@ export default function Weather() {
               {visibleResolved.map((trade, index) => {
                 const pnl = Number(trade.pnl || 0);
                 return (
-                  <tr key={String(trade.id || `${trade.city}-${index}`)} className={index % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950'}>
+                  <tr key={String(trade.id || `${trade.city}-${index}`)} className={index % 2 === 0 ? 'bg-[var(--surface)]' : 'bg-[var(--black)]'}>
                     <td className="px-3 py-2">{String(trade.city || 'Unknown')}</td>
                     <td className="px-3 py-2">{formatDate(trade.event_date || trade.created_at)}</td>
                     <td className="px-3 py-2">{String(trade.side || '--')}</td>
                     <td className="px-3 py-2">{String(trade.result || '--')}</td>
-                    <td className={`px-3 py-2 ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <td className={`px-3 py-2 ${pnl >= 0 ? 'text-[var(--success)]' : 'text-[var(--accent)]'}`}>
                       {formatCurrency(pnl)}
                     </td>
                     <td className="px-3 py-2">{formatCurrency(trade.entry_price)}</td>

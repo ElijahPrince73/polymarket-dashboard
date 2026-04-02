@@ -1,13 +1,282 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-bg-main: #020617;
-  --color-bg-card: #0f172a;
-  --color-bg-sidebar: #1e293b;
-  --color-border-muted: #1f2937;
-  --color-text-primary: #e2e8f0;
-  --color-text-muted: #94a3b8;
-  --color-positive: #10b981;
-  --color-negative: #ef4444;
-  --color-warning: #f59e0b;
+  --black: #000000;
+  --surface: #111111;
+  --surface-raised: #1a1a1a;
+  --border: #222222;
+  --border-visible: #333333;
+  --text-disabled: #666666;
+  --text-secondary: #999999;
+  --text-primary: #e8e8e8;
+  --text-display: #ffffff;
+  --accent: #d71921;
+  --success: #4a9e5c;
+  --warning: #d4a843;
+  --font-body: 'Space Grotesk', system-ui, sans-serif;
+  --font-label: 'Space Mono', monospace;
+  --font-display: 'Doto', monospace;
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+}
+
+@utility font-body {
+  font-family: var(--font-body);
+}
+
+@utility font-label {
+  font-family: var(--font-label);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    background: var(--black);
+  }
+
+  body {
+    min-height: 100vh;
+    background: var(--black);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background: var(--text-display);
+    color: var(--black);
+  }
+}
+
+@layer components {
+  .nothing-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+  }
+
+  .nothing-card-raised {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface-raised);
+  }
+
+  .nothing-section-title {
+    color: var(--text-secondary);
+    font-family: var(--font-label);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .nothing-page-title {
+    color: var(--text-display);
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  .nothing-label {
+    color: var(--text-secondary);
+    font-family: var(--font-label);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .nothing-meta {
+    color: var(--text-secondary);
+    font-family: var(--font-label);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .nothing-display {
+    color: var(--text-display);
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: 0.02em;
+  }
+
+  .nothing-button-primary {
+    border-radius: 999px;
+    background: var(--text-display);
+    color: var(--black);
+    font-family: var(--font-label);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .nothing-button-secondary {
+    border: 1px solid var(--border-visible);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-display);
+    font-family: var(--font-label);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .nothing-button-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-label);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .nothing-input {
+    border: 1px solid var(--border-visible);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    color: var(--text-display);
+    font-family: var(--font-label);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .nothing-tag {
+    border: 1px solid var(--border-visible);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-display);
+    font-family: var(--font-label);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .nothing-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .nothing-table thead th {
+    border-bottom: 1px solid var(--border-visible);
+    color: var(--text-secondary);
+    font-family: var(--font-label);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .nothing-table th,
+  .nothing-table td {
+    padding: 12px 16px;
+  }
+
+  .nothing-table tbody tr {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nothing-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .nothing-table tbody td {
+    color: var(--text-primary);
+  }
+
+  .nothing-table td[data-mono='true'] {
+    font-family: var(--font-label);
+  }
+
+  .nothing-segmented {
+    display: inline-flex;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px;
+    background: var(--surface-raised);
+  }
+
+  .nothing-segmented button {
+    border-radius: 999px;
+    padding: 8px 14px;
+    color: var(--text-secondary);
+    font-family: var(--font-label);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .nothing-segmented button[data-active='true'] {
+    background: var(--text-display);
+    color: var(--black);
+  }
+
+  .nothing-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 52px;
+    height: 30px;
+    border: 1px solid var(--border-visible);
+    border-radius: 999px;
+    background: var(--border-visible);
+    padding: 3px;
+    transition: background-color 150ms ease;
+  }
+
+  .nothing-toggle[data-active='true'] {
+    background: var(--text-display);
+  }
+
+  .nothing-toggle-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--black);
+    transition: transform 150ms ease;
+  }
+
+  .nothing-toggle[data-active='true'] .nothing-toggle-thumb {
+    transform: translateX(22px);
+  }
+
+  .nothing-progress {
+    display: flex;
+    gap: 2px;
+  }
+
+  .nothing-progress > span {
+    height: 8px;
+    flex: 1 1 0;
+    background: var(--border);
+  }
+
+  .nothing-progress > span[data-filled='true'] {
+    background: var(--text-display);
+  }
+
+  .nothing-chart text {
+    fill: var(--text-secondary);
+    font-family: var(--font-label);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
 }

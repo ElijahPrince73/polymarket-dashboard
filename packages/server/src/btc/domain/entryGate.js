@@ -273,11 +273,9 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
   // ── 5. One trade per market: skip rest of 5m window after any exit ──
   const marketSlug = signals.market?.slug;
   const oneTradePerMarket = config.oneTradePerMarket ?? true;
-  // Clear skip only when the skipped market has actually settled
-  // (Polymarket API can briefly show the next slug before current one ends)
-  if (state.skipMarketUntilNextSlug && marketSlug
-      && marketSlug !== 'unknown'
-      && state.skipMarketUntilNextSlug !== marketSlug) {
+  // Clear skip ONLY based on time — the skipped market must have settled.
+  // Never clear based on slug change alone (Polymarket API flickers between slugs).
+  if (state.skipMarketUntilNextSlug) {
     const skipSlugMatch = state.skipMarketUntilNextSlug.match(/(\d+)$/);
     if (skipSlugMatch) {
       const durationSec = state.skipMarketUntilNextSlug.includes('15m') ? 900 : 300;
@@ -285,14 +283,16 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
       if (Date.now() > settlementMs) {
         state.skipMarketUntilNextSlug = null;
       }
-      // else: skipped market hasn't settled yet — keep the skip active
     } else {
-      state.skipMarketUntilNextSlug = null; // can't parse, fall back to old behavior
+      // Can't parse timestamp from slug — clear after 15 minutes as safety fallback
+      if (!state._skipSetAtMs || Date.now() - state._skipSetAtMs > 15 * 60_000) {
+        state.skipMarketUntilNextSlug = null;
+      }
     }
   }
   if (oneTradePerMarket && state.skipMarketUntilNextSlug && marketSlug
       && state.skipMarketUntilNextSlug === marketSlug) {
-    blockers.push('One trade per market (wait for next 5m)');
+    blockers.push('One trade per market (wait for next market)');
   }
 
   // ── 9. Has open position ───────────────────────────────────────

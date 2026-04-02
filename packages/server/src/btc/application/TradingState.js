@@ -203,6 +203,7 @@ export class TradingState {
     // One trade per market: skip re-entry for rest of this market slug after ANY exit
     if (marketSlug) {
       this.skipMarketUntilNextSlug = marketSlug;
+      this._skipSetAtMs = Date.now();
     }
 
     // Update daily PnL

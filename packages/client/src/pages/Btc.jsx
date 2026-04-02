@@ -431,22 +431,22 @@ export function BtcDashboard({
               <button
                 type="button"
                 onClick={isTrading ? stopTrading : startTrading}
-                className={`rounded-lg px-4 py-1.5 text-sm font-medium text-[var(--text-display)] transition-colors ${
+                className={`nothing-button-primary rounded-full px-5 py-1.5 transition-colors ${
                   isTrading
-                    ? 'bg-[var(--accent)] hover:bg-[var(--accent)]'
-                    : 'bg-[var(--text-display)] hover:bg-[var(--text-primary)]'
+                    ? '!bg-[var(--accent)] !text-[var(--text-display)]'
+                    : ''
                 }`}
               >
-                {isTrading ? 'Stop' : 'Start'}
+                {isTrading ? 'STOP' : 'START'}
               </button>
               {hasOpen && (
                 <button
                   type="button"
                   onClick={forceCloseTrade}
-                  className="rounded-lg bg-[var(--warning)] px-3 py-1.5 text-xs font-medium text-[var(--text-display)] hover:bg-[var(--warning)]"
+                  className="nothing-button-secondary rounded-full border-[var(--warning)] px-3 py-1.5 text-xs text-[var(--warning)]"
                   title="Force close stuck trade"
                 >
-                  Force Close
+                  FORCE CLOSE
                 </button>
               )}
             </div>

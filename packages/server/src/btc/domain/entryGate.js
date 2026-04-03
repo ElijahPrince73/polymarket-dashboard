@@ -290,9 +290,14 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
       }
     }
   }
-  if (oneTradePerMarket && state.skipMarketUntilNextSlug && marketSlug
-      && state.skipMarketUntilNextSlug === marketSlug) {
-    blockers.push('One trade per market (wait for next market)');
+  if (oneTradePerMarket && marketSlug) {
+    if (state.skipMarketUntilNextSlug && state.skipMarketUntilNextSlug === marketSlug) {
+      blockers.push('One trade per market (wait for next market)');
+    }
+    // Debug: log when a trade would be allowed on a slug we just exited
+    if (!state.skipMarketUntilNextSlug && state._lastExitedSlug === marketSlug) {
+      console.warn(`[entryGate] WARNING: skip was cleared but still on same slug ${marketSlug}. _skipSetAtMs=${state._skipSetAtMs}`);
+    }
   }
 
   // ── 9. Has open position ───────────────────────────────────────

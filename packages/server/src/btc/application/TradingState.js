@@ -204,6 +204,8 @@ export class TradingState {
     if (marketSlug) {
       this.skipMarketUntilNextSlug = marketSlug;
       this._skipSetAtMs = Date.now();
+      this._lastExitedSlug = marketSlug;
+      console.log(`[TradingState] Set skip for slug: ${marketSlug}`);
     }
 
     // Update daily PnL

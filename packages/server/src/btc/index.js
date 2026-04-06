@@ -523,14 +523,19 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
     const timeLeftMin = timing.remainingMinutes;
 
     let currentPrice = null;
+    const chainlinkRestStaleMs = 60_000;
 
     // Fetch Live BTC Price Data ---
     // Primary: Chainlink WS (if configured)
     const chainlinkTick = chainlinkStream.getLast?.() ?? null;
     if (chainlinkTick?.price) currentPrice = chainlinkTick.price;
+    const chainlinkWsStale = !candleMeta.lastTickAt || (Date.now() - candleMeta.lastTickAt) > chainlinkRestStaleMs;
 
     // Fallback: Chainlink REST (reliable) + feed candle builder
-    if (currentPrice === null) {
+    if (currentPrice === null || chainlinkWsStale) {
+      if (chainlinkWsStale && currentPrice !== null) {
+        console.warn(`Chainlink WS tick is stale (${candleMeta.lastTickAt ? new Date(candleMeta.lastTickAt).toISOString() : "never"}); falling back to Chainlink REST`);
+      }
       try {
         const restTick = await fetchChainlinkBtcUsd();
         if (restTick?.price) {

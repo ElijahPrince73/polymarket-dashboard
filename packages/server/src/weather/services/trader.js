@@ -24,6 +24,7 @@ import {
 } from "./discovery.js";
 import { getBalance as getLiveBalance, isLiveMode, placeBuyOrder } from "./exchange.js";
 import {
+  cToF,
   detectMarketType,
   fmtDateInTz,
   normalCdf,
@@ -153,8 +154,10 @@ export async function runTradeDiscovery(dbApi = db) {
 
       // Determine type and forecast temp for this event
       const type = detectMarketType(tempMarkets[0].question);
-      const forecastTemp = type === "temp_max" ? dayUse.tmax : dayUse.tmin;
-      if (forecastTemp == null) continue;
+      const forecastTempC = type === "temp_max" ? dayUse.tmax : dayUse.tmin;
+      if (forecastTempC == null) continue;
+      // Convert forecast to city's native unit for storage and comparison
+      const forecastTemp = city.unit === "F" ? cToF(forecastTempC) : forecastTempC;
       const defaultSigma = city.unit === "F" ? SIGMA_F : SIGMA_C;
       const calRow = await dbApi.getCalibration(city.name, type);
       const accuracy = await getCityAccuracy(city.name, type, dbApi);
@@ -170,8 +173,8 @@ export async function runTradeDiscovery(dbApi = db) {
       if (dateStr && dateStr < localDate) continue;
 
       const blendedNote = type === "temp_max"
-        ? `Forecast tmax=${dayUse.tmax}C σ=${sigma} (Blended ${blendedTemps?.modelsUsed ?? 0} models${metar?.tempC != null ? " + METAR" : ""})`
-        : `Forecast tmin=${dayUse.tmin}C σ=${sigma} (Blended ${blendedTemps?.modelsUsed ?? 0} models${metar?.tempC != null ? " + METAR" : ""})`;
+        ? `Forecast tmax=${forecastTemp}${city.unit} σ=${sigma} (Blended ${blendedTemps?.modelsUsed ?? 0} models${metar?.tempC != null ? " + METAR" : ""})`
+        : `Forecast tmin=${forecastTemp}${city.unit} σ=${sigma} (Blended ${blendedTemps?.modelsUsed ?? 0} models${metar?.tempC != null ? " + METAR" : ""})`;
 
       // === RANGE BUCKET STRATEGY ===
       // Buy YES on the 2-3 range buckets closest to the forecast temperature.
@@ -191,8 +194,11 @@ export async function runTradeDiscovery(dbApi = db) {
         if (!range) continue; // Only range markets (e.g. "78-79°F")
 
         // Model probability via normal CDF over the range (for tracking/logging)
-        const z1 = (range.lowC - forecastTemp) / sigma;
-        const z2 = (range.highC - forecastTemp) / sigma;
+        // Convert everything to Celsius for consistent calculation
+        const forecastTempForCalc = city.unit === "F" ? forecastTempC : forecastTemp;
+        const sigmaForCalc = city.unit === "F" ? sigma * 5/9 : sigma; // Convert F sigma to C
+        const z1 = (range.lowC - forecastTempForCalc) / sigmaForCalc;
+        const z2 = (range.highC - forecastTempForCalc) / sigmaForCalc;
         const rawProb = Math.max(0, normalCdf(z2) - normalCdf(z1));
         const modelProb = Math.max(0, Math.min(1, rawProb + bias));
 

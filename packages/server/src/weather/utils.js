@@ -116,6 +116,10 @@ export function fToC(f) {
   return ((f - 32) * 5) / 9;
 }
 
+export function cToF(c) {
+  return (c * 9) / 5 + 32;
+}
+
 export function parseThresholdC(question) {
   let m = String(question).match(/(-?\d+)\s*°?C/i);
   if (m) return { valueC: parseFloat(m[1]), unit: "C" };

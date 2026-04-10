@@ -171,7 +171,7 @@ export const CONFIG = {
     // Tightened from 12% to 8%: simulation showed $76 saved over 20 max-loss trades
     // Tightened: risk $5 instead of $8. At 30% MFE $5+ rate, breakeven ~50% WR
     dynamicStopLossPct: 0.12, // 12% of position — hardcoded, no env override
-    minMaxLossUsd: 3,
+    minMaxLossUsd: 0,
     maxMaxLossUsd: 50,
 
     // Max-loss grace (optional): when pnl breaches -maxLossUsdPerTrade, allow a short grace window
@@ -468,6 +468,7 @@ export const CONFIG = {
     // Week 1: $3, Week 2: $10, Week 3: $25, Week 4+: full size
     maxPerTradeUsd: 10,
     maxOpenExposureUsd: 10,
+
     // Kill switch: if realized PnL for the day <= -maxDailyLossUsd, stop live trading.
     // Reset mode: "midnight_pt" (default)
     maxDailyLossUsd: 30,
@@ -508,6 +509,18 @@ export const CONFIG = {
     maxOrderRetries: 3,
 
     // Retry delays are hardcoded: [1000, 2000, 4000] ms (not env-configurable)
+
+    // ── CRITICAL: Stop loss and risk management ──
+    // Keep these explicit so live mode never depends on accidental paper inheritance.
+    dynamicStopLossEnabled: true,
+    dynamicStopLossPct: 0.12,        // 12% of position
+    minMaxLossUsd: 3,
+    maxMaxLossUsd: 50,
+    maxLossGraceEnabled: true,
+    maxLossGraceSeconds: 60,
+    maxLossRecoverUsd: 10,
+    maxLossGraceRequireModelSupport: true,
+    stopLossGraceSec: 20,
   },
 
   // UI server settings
@@ -564,4 +577,23 @@ export const CONFIG_15M = (() => {
 
 export function getConfigForTimeframe(timeframe = '5m') {
   return String(timeframe).toLowerCase() === '15m' ? CONFIG_15M : CONFIG;
+}
+
+export function buildTradingConfig(config, mode = 'paper', timeframe = '5m') {
+  const normalizedMode = mode === 'live' ? 'live' : 'paper';
+  if (normalizedMode === 'live') {
+    return {
+      ...config.paperTrading,
+      ...config.liveTrading,
+      _mode: 'live',
+      timeframe,
+    };
+  }
+
+  return {
+    ...config.paperTrading,
+    _mode: 'paper',
+    ...(config.paperTrading.paperKillSwitchEnabled === false ? { maxDailyLossUsd: 0 } : {}),
+    timeframe,
+  };
 }

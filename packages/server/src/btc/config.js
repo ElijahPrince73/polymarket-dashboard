@@ -508,6 +508,18 @@ export const CONFIG = {
     maxOrderRetries: 3,
 
     // Retry delays are hardcoded: [1000, 2000, 4000] ms (not env-configurable)
+
+    // ── CRITICAL: Stop loss and risk management (copied from paperTrading) ──
+    // These were missing from liveTrading config, causing stop losses to not work!
+    dynamicStopLossEnabled: true,
+    dynamicStopLossPct: 0.12,        // 12% of position
+    minMaxLossUsd: 3,
+    maxMaxLossUsd: 50,
+    maxLossGraceEnabled: true,
+    maxLossGraceSeconds: 60,
+    maxLossRecoverUsd: 10,
+    maxLossGraceRequireModelSupport: true,
+    stopLossGraceSec: 20,
   },
 
   // UI server settings

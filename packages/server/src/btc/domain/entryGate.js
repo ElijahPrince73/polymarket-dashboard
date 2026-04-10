@@ -18,6 +18,10 @@ function isNum(x) {
   return typeof x === 'number' && Number.isFinite(x);
 }
 
+export function isOutsideTradingHours(pacificHour, startHour, endHour) {
+  return pacificHour < startHour || pacificHour >= endHour;
+}
+
 /**
  * Detect Pacific-time weekend and current day/hour.
  * @returns {{ isWeekend: boolean, wd: string, hour: number }}
@@ -105,7 +109,7 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     const { hour: pstHour } = getPacificTimeInfo();
     const startHour = config.tradingHoursStart ?? 6;
     const endHour = config.tradingHoursEnd ?? 17;
-    if (pstHour < startHour || pstHour >= endHour) {
+    if (isOutsideTradingHours(pstHour, startHour, endHour)) {
       blockers.push(`Outside trading hours (${pstHour}:00 PST, allowed ${startHour}-${endHour})`);
     }
   }

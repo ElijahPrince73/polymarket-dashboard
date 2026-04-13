@@ -516,11 +516,11 @@ export const CONFIG = {
     dynamicStopLossPct: 0.12,        // 12% of position
     minMaxLossUsd: 3,
     maxMaxLossUsd: 50,
-    maxLossGraceEnabled: true,
-    maxLossGraceSeconds: 60,
-    maxLossRecoverUsd: 10,
-    maxLossGraceRequireModelSupport: true,
-    stopLossGraceSec: 20,
+    maxLossGraceEnabled: false,
+    maxLossGraceSeconds: 0,
+    maxLossRecoverUsd: null,
+    maxLossGraceRequireModelSupport: false,
+    stopLossGraceSec: 0,
   },
 
   // UI server settings

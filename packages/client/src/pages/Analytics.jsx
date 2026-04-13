@@ -177,8 +177,9 @@ function tooltipStyle() {
 }
 
 export default function Analytics() {
-  const { data: distributions } = useApi('/api/analytics/distributions');
-  const { data: combinedAnalytics } = useApi('/api/analytics/combined');
+  // Slow-poll historical analytics (don't change frequently)
+  const { data: distributions } = useApi('/api/analytics/distributions', { pollMs: 60_000 });
+  const { data: combinedAnalytics } = useApi('/api/analytics/combined', { pollMs: 60_000 });
 
   const [activeTab, setActiveTab] = useState('distribution');
   const [distributionFilter, setDistributionFilter] = useState('all');

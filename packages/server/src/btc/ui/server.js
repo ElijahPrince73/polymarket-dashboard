@@ -14,7 +14,7 @@ import { gridSearch, generateParamRanges, DEFAULT_PARAM_RANGES } from '../domain
 import { assembleStatus } from '../services/statusService.js';
 import { fetchLiveTrades, fetchLiveOpenOrders, fetchLivePositions, fetchLiveAnalytics } from '../services/liveService.js';
 import { TradingState } from '../application/TradingState.js';
-import { CONFIG } from '../config.js';
+import { CONFIG, buildTradingConfig } from '../config.js';
 import { getPacificTimeInfo } from '../domain/entryGate.js';
 import { generateSuggestions } from '../services/suggestionService.js';
 import { archiveTrades, getConfigVersions, getArchivedTrades } from '../infrastructure/persistence/tradeArchive.js';
@@ -1046,9 +1046,8 @@ router.post('/mode', (req, res) => {
     mm.switchMode(mode);
     // Update engine's executor and config
     engine.executor = mm.getActiveExecutor();
-    engine.config = mode === 'live'
-      ? { ...CONFIG.paperTrading, ...CONFIG.liveTrading }
-      : { ...CONFIG.paperTrading };
+    engine.config = buildTradingConfig(CONFIG, mode, '5m');
+    if (engine.executor) engine.executor.config = engine.config;
     engine.tradingEnabled = false; // Safety: stop trading on mode switch
     engine.state = new TradingState(); // Fresh state on mode switch
     res.json(ok({ mode: mm.getMode(), tradingEnabled: false }));

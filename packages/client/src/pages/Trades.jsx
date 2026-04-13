@@ -98,8 +98,9 @@ function filterClass() {
 }
 
 export default function Trades() {
-  const { data: btcTrades } = useApi('/api/btc/trades');
-  const { data: weatherTrades } = useApi('/api/weather/trades');
+  // Historical trade data - slow poll (refetch manually when needed)
+  const { data: btcTrades } = useApi('/api/btc/trades', { pollMs: 60_000 });
+  const { data: weatherTrades } = useApi('/api/weather/trades', { pollMs: 60_000 });
 
   const [marketFilter, setMarketFilter] = useState('ALL');
   const [resultFilter, setResultFilter] = useState('ALL');

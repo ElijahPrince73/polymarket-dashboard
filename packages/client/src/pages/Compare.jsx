@@ -105,10 +105,11 @@ function tooltipStyle() {
 }
 
 export default function Compare() {
-  const { data: combinedAnalytics } = useApi('/api/analytics/combined');
-  const { data: distributions } = useApi('/api/analytics/distributions');
-  const { data: btcTrades } = useApi('/api/btc/trades');
-  const { data: weatherTrades } = useApi('/api/weather/trades');
+  // Analytics endpoints - slow poll (historical data)
+  const { data: combinedAnalytics } = useApi('/api/analytics/combined', { pollMs: 60_000 });
+  const { data: distributions } = useApi('/api/analytics/distributions', { pollMs: 60_000 });
+  const { data: btcTrades } = useApi('/api/btc/trades', { pollMs: 60_000 });
+  const { data: weatherTrades } = useApi('/api/weather/trades', { pollMs: 60_000 });
 
   const [normalized, setNormalized] = useState(false);
 

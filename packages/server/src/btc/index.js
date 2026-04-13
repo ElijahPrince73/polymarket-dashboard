@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { CONFIG, getConfigForTimeframe } from "./config.js";
+import { CONFIG, buildTradingConfig, getConfigForTimeframe } from "./config.js";
 // Data providers - dynamically select based on config.priceFeed
 let klineProvider = null;
 
@@ -265,7 +265,7 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
   let liveExecutor = null;
   if (config.liveTrading?.enabled) {
     try {
-      const liveConfig = { ...config.paperTrading, ...config.liveTrading, timeframe };
+      const liveConfig = buildTradingConfig(config, 'live', timeframe);
       liveExecutor = new LiveExecutor({ config: liveConfig, getMarket });
       await liveExecutor.initialize();
     } catch (e) {
@@ -284,15 +284,7 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
 
   const activeExecutor = modeManager.getActiveExecutor();
   const currentMode = modeManager.getMode();
-  const activeConfig = currentMode === 'live'
-    ? { ...config.paperTrading, ...config.liveTrading, _mode: 'live', timeframe }
-    : {
-      ...config.paperTrading,
-      _mode: 'paper',
-      // Fully disable kill switch in paper mode when paperKillSwitchEnabled is false
-      ...(config.paperTrading.paperKillSwitchEnabled === false ? { maxDailyLossUsd: 0 } : {}),
-      timeframe,
-    };
+  const activeConfig = buildTradingConfig(config, currentMode, timeframe);
 
   const engine = new TradingEngine({
     executor: activeExecutor,

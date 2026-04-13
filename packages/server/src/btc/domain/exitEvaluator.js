@@ -280,8 +280,9 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     // SL grace period — don't apply stop loss in first N seconds
     // Data shows 52/171 trades had direction RIGHT but lost to early SL
     // Winners avg 18s — give the trade time to develop before cutting
-    const slGraceSec = config.stopLossGraceSec ?? 20;
-    if (isNum(tradeAgeSec) && tradeAgeSec < slGraceSec) {
+    // Note: use explicit undefined check since 0 is a valid (disabled) value
+    const slGraceSec = config.stopLossGraceSec !== undefined ? config.stopLossGraceSec : 20;
+    if (isNum(tradeAgeSec) && slGraceSec > 0 && tradeAgeSec < slGraceSec) {
       // Within grace period — skip stop loss check entirely
       // (TP can still fire during this window)
     } else if (breached) {

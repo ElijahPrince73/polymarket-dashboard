@@ -139,7 +139,7 @@ export const CONFIG = {
     // Minimum hold before max loss can trigger (seconds).
     // Prevents stop-outs from entry volatility. 5/7 "right direction but lost" trades
     // hit max loss in <10s — the market dipped then went our way.
-    minHoldBeforeStopSeconds: 5,
+    minHoldBeforeStopSeconds: 0,
 
     // Hard max loss cap (USD): prevents one trade from wiping multiple small wins.
     // If pnlNow <= -maxLossUsdPerTrade, force exit (unless max-loss grace is enabled).
@@ -514,7 +514,7 @@ export const CONFIG = {
     // Keep these explicit so live mode never depends on accidental paper inheritance.
     dynamicStopLossEnabled: true,
     dynamicStopLossPct: 0.12,        // 12% of position
-    minMaxLossUsd: 3,
+    minMaxLossUsd: 0,
     maxMaxLossUsd: 50,
     maxLossGraceEnabled: false,
     maxLossGraceSeconds: 0,

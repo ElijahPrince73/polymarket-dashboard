@@ -217,12 +217,13 @@ export function BtcDashboard({
   useEffect(() => {
     setHasOpenTrade(!!status?.openTrade);
   }, [status?.openTrade]);
-  const { data: killSwitch, refetch: refetchKill } = useApi(`${basePath}/kill-switch/status`);
-  const { data: paperTrades, refetch: refetchTrades } = useApi(`${basePath}/trades`);
-  const { data: openOrders, refetch: refetchOpenOrders } = useApi(`${basePath}/live/open-orders`);
-  const { data: portfolio } = useApi(`${basePath}/portfolio`);
-  const { data: liveAnalytics } = useApi(`${basePath}/live/analytics`);
-  const { data: liveTrades } = useApi(`${basePath}/live/trades`);
+  // Slow-poll historical/endpoints that rarely change
+  const { data: killSwitch, refetch: refetchKill } = useApi(`${basePath}/kill-switch/status`, { pollMs: 30_000 });
+  const { data: paperTrades, refetch: refetchTrades } = useApi(`${basePath}/trades`, { pollMs: 60_000 });
+  const { data: openOrders, refetch: refetchOpenOrders } = useApi(`${basePath}/live/open-orders`, { pollMs }); // fast when trade open
+  const { data: portfolio } = useApi(`${basePath}/portfolio`, { pollMs: 30_000 });
+  const { data: liveAnalytics } = useApi(`${basePath}/live/analytics`, { pollMs: 60_000 });
+  const { data: liveTrades } = useApi(`${basePath}/live/trades`, { pollMs: 60_000 });
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sideFilter, setSideFilter] = useState('ALL');

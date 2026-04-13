@@ -158,10 +158,10 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     }
   }
 
-  // Stop-loss hit (percentage-based)
+  // Stop-loss hit (percentage-based) - prefer dynamicStopLossPct (live mode), fallback to stopLossPct (paper)
   let stopLossHit = false;
   if (pnlNow !== null && isNum(position.contractSize) && position.contractSize > 0) {
-    const stopLossPct = config.stopLossPct ?? 0.25;
+    const stopLossPct = config.dynamicStopLossPct ?? config.stopLossPct ?? 0.25;
     const stopLossAmount = -Math.abs(position.contractSize * stopLossPct);
     stopLossHit = pnlNow <= stopLossAmount;
   }

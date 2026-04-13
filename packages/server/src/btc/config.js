@@ -170,7 +170,7 @@ export const CONFIG = {
 
     // Tightened from 12% to 8%: simulation showed $76 saved over 20 max-loss trades
     // Tightened: risk $5 instead of $8. At 30% MFE $5+ rate, breakeven ~50% WR
-    dynamicStopLossPct: 0.12, // 12% of position — hardcoded, no env override
+    dynamicStopLossPct: 0.30, // 30% of position — loose stop for volatility, let winners ride
     minMaxLossUsd: 0,
     maxMaxLossUsd: 50,
 

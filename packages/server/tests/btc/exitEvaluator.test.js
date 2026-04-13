@@ -9,7 +9,7 @@ describe('BTC exit evaluator live risk management', () => {
     const config = buildTradingConfig(CONFIG, 'live', '5m');
     
     // Verify config is correct
-    expect(config.dynamicStopLossPct).toBe(0.12);
+    expect(config.dynamicStopLossPct).toBe(0.30);
     expect(config.minMaxLossUsd).toBe(0);
     expect(config.dynamicStopLossEnabled).toBe(true);
     
@@ -21,7 +21,7 @@ describe('BTC exit evaluator live risk management', () => {
       shares: 19.98,
       contractSize: 9.99,
       mark: 0.43994,
-      unrealizedPnl: -1.20, // 12% of $9.99 ≈ $1.20
+      unrealizedPnl: -3.00, // 30% of $9.99 ≈ $3.00
       maxUnrealizedPnl: 0,
       minUnrealizedPnl: -1.20,
       entryTime: new Date(now - 1_000).toISOString(),
@@ -41,8 +41,8 @@ describe('BTC exit evaluator live risk management', () => {
       now,                           // nowMs
     );
 
-    // Stop loss should fire at 12% for $9.99 position = $1.20 loss
-    expect(result.decision?.reason).toBe('Max Loss ($1.20)');
+    // Stop loss should fire at 30% for $9.99 position = $3.00 loss
+    expect(result.decision?.reason).toBe('Max Loss ($3.00)');
   });
 
   it('respects maxMaxLossUsd cap for large positions', () => {

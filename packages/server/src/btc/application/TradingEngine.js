@@ -198,6 +198,21 @@ export class TradingEngine {
     for (const p of positions) {
       const posId = p.id || p.tokenID || 'default';
       const graceState = this.state.getGraceState(posId);
+
+      // ── DEBUG: Log position state before exit evaluation ──────
+      const evalMode = this.executor.getMode();
+      if (evalMode === 'live') {
+        const stopLossThreshold = -Math.abs((p.contractSize || 0) * (this.config.dynamicStopLossPct ?? 0.25));
+        console.log(
+          `[LIVE EXIT DEBUG] posId=${posId} side=${p.side} ` +
+          `contractSize=$${p.contractSize?.toFixed(2)} ` +
+          `mark=${p.mark} ` +
+          `unrealizedPnl=${p.unrealizedPnl} ` +
+          `configStopLoss=${((this.config.dynamicStopLossPct ?? 0.25) * 100).toFixed(0)}% ` +
+          `stopLossThreshold=$${stopLossThreshold.toFixed(2)}`
+        );
+      }
+
       const exitResult = p._forceExit
         ? {
           decision: {
@@ -206,6 +221,13 @@ export class TradingEngine {
           },
         }
         : evaluateExits(p, signals, this.config, graceState);
+
+      // ── DEBUG: Log exit decision ───────────────────────────────
+      if (evalMode === 'live' && exitResult.decision) {
+        console.log(
+          `[LIVE EXIT DEBUG] >>> EXIT DECISION: ${exitResult.decision.action} reason=${exitResult.decision.reason} pnlNow=${exitResult.pnlNow}`
+        );
+      }
 
       // Handle grace actions
       if (exitResult.graceAction === 'START_GRACE') {
@@ -292,6 +314,13 @@ export class TradingEngine {
         // Reset trajectory for next trade
         this._pnlTrajectory = [];
         this._tradeStartMs = null;
+
+        // ── DEBUG: Log before attempting close ───────────────────
+        if (evalMode === 'live') {
+          console.log(
+            `[LIVE EXIT DEBUG] >>> CALLING closePosition: tradeId=${p.id} side=${p.side} shares=${p.shares} reason=${reason}`
+          );
+        }
 
         try {
           const closeResult = await this.executor.closePosition({

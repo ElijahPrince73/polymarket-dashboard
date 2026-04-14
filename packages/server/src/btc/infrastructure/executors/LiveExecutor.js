@@ -856,10 +856,7 @@ export class LiveExecutor extends OrderExecutor {
     return positions.map((p) => {
       // Skip marking if signals are for a different market than the position
       // (Polymarket API can flicker to next market before current one settles)
-      if (p.marketSlug && currentSlug && p.marketSlug !== currentSlug) {
-        return { ...p, mark: p.mark ?? null, unrealizedPnl: p.unrealizedPnl ?? null };
-      }
-
+      // But still try to compute mark - we need PnL for stop loss!
       const poly = signals.polyMarketSnapshot;
       const rawUpC = signals.polyPricesCents?.UP ?? null;
       const rawDownC = signals.polyPricesCents?.DOWN ?? null;
@@ -878,6 +875,19 @@ export class LiveExecutor extends OrderExecutor {
           : (isNum(obDown?.bestBid) && obDown.bestBid > 0 ? obDown.bestBid : null);
       }
 
+      // FALLBACK: If mark is still null, try to fetch directly from CLOB
+      // This is critical for stop loss to work - we NEED PnL data
+      if (!isNum(mark) && p.tokenID) {
+        try {
+          const priceResult = await this._fetchTokenPriceFromCLOB(p.tokenID);
+          if (isNum(priceResult) && priceResult > 0) {
+            mark = priceResult;
+          }
+        } catch (_) {
+          // Fallback failed, continue with null mark
+        }
+      }
+
       let unrealizedPnl = null;
       if (isNum(mark) && isNum(p.shares) && isNum(p.contractSize)) {
         unrealizedPnl = p.shares * mark - p.contractSize;
@@ -885,6 +895,30 @@ export class LiveExecutor extends OrderExecutor {
 
       return { ...p, mark, unrealizedPnl };
     });
+  }
+
+  /**
+   * Fallback price fetch directly from CLOB API for a specific token
+   * @param {string} tokenId
+   * @returns {Promise<number|null>} price in cents (0.01 = 1¢)
+   */
+  async _fetchTokenPriceFromCLOB(tokenId) {
+    try {
+      const resp = await this.client.getPrice({ tokenId });
+      if (isNum(resp) && resp > 0) return resp;
+      // Try orderbook for this specific token
+      const ob = await this.client.getOrderBook({ tokenId });
+      if (ob?.bids?.length > 0 && ob?.asks?.length > 0) {
+        const bestBid = Number(ob.bids[0].price);
+        const bestAsk = Number(ob.asks[0].price);
+        if (isNum(bestBid) && isNum(bestAsk)) {
+          return (bestBid + bestAsk) / 2;
+        }
+        if (isNum(bestBid)) return bestBid;
+        if (isNum(bestAsk)) return bestAsk;
+      }
+    } catch (_) {}
+    return null;
   }
 
   /**

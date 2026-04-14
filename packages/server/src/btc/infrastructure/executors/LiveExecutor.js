@@ -853,17 +853,15 @@ export class LiveExecutor extends OrderExecutor {
     // can return null/404 for active markets and caches them as expired
     const currentSlug = signals.market?.slug ?? null;
 
-    return positions.map((p) => {
-      // Skip marking if signals are for a different market than the position
-      // (Polymarket API can flicker to next market before current one settles)
-      // But still try to compute mark - we need PnL for stop loss!
+    const results = [];
+    for (const p of positions) {
+      // Try to get mark from signals first
       const poly = signals.polyMarketSnapshot;
       const rawUpC = signals.polyPricesCents?.UP ?? null;
       const rawDownC = signals.polyPricesCents?.DOWN ?? null;
       const obUp = poly?.orderbook?.up;
       const obDown = poly?.orderbook?.down;
 
-      // For marking, use sell-side price (bid) — what we'd get if we sold
       let mark = null;
       if (p.side === 'UP') {
         mark = isNum(rawUpC) && rawUpC > 0
@@ -893,8 +891,10 @@ export class LiveExecutor extends OrderExecutor {
         unrealizedPnl = p.shares * mark - p.contractSize;
       }
 
-      return { ...p, mark, unrealizedPnl };
-    });
+      results.push({ ...p, mark, unrealizedPnl });
+    }
+
+    return results;
   }
 
   /**

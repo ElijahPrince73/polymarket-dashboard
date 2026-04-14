@@ -513,7 +513,7 @@ export const CONFIG = {
     // ── CRITICAL: Stop loss and risk management ──
     // Keep these explicit so live mode never depends on accidental paper inheritance.
     dynamicStopLossEnabled: true,
-    dynamicStopLossPct: 0.12,        // 12% of position
+    dynamicStopLossPct: 0.30,        // 30% of position — loose stop for volatility, let winners ride
     minMaxLossUsd: 0,
     maxMaxLossUsd: 50,
     maxLossGraceEnabled: false,

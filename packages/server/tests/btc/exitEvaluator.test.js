@@ -57,7 +57,7 @@ describe('BTC exit evaluator live risk management', () => {
       shares: 199.8,
       contractSize: 99.9,  // $100 position
       mark: 0.43994,
-      unrealizedPnl: -20.0, // 20% loss = $20, exceeds maxMaxLossUsd
+      unrealizedPnl: -35.0, // 35% loss = $35, exceeds 30% threshold
       maxUnrealizedPnl: 0,
       minUnrealizedPnl: -20.0,
       entryTime: new Date(now - 1_000).toISOString(),

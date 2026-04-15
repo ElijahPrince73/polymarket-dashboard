@@ -55,6 +55,16 @@ app.get("/api/health", (_req, res) => {
 import analyticsRouter from './routes/analytics.js';
 app.use('/api/analytics', analyticsRouter);
 
+// ── TEST: Direct BTC route mount (bypass boot.js) ─────────────────────
+// Remove this after debugging
+try {
+  const { mountBtcRoutes } = await import('./btc/ui/server.js');
+  mountBtcRoutes(app, '/api/btc');
+  console.log('[Boot] Direct BTC route mount succeeded (test)');
+} catch(err) {
+  console.error('[Boot] Direct BTC route mount FAILED:', err.message, err.stack);
+}
+
 // ── Boot sequence ──────────────────────────────────────────────────────
 
 async function boot() {

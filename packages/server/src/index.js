@@ -55,11 +55,24 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+// ── BTC diagnostics: mount a test route directly in index.js ────────
+// This runs regardless of boot.js state, to isolate the issue.
+app.get("/api/btc/diag", (_req, res) => {
+  console.log('[DIAG] /api/btc/diag called — globalThis keys:', Object.keys(globalThis).filter(k => k.startsWith('__')).join(', '));
+  res.json({
+    ok: true,
+    diag: true,
+    globalThis: Object.keys(globalThis).filter(k => k.startsWith('__')),
+  });
+});
+
 // ── Standalone BTC status (no module dependency) ─────────────────────────
 // This endpoint is mounted BEFORE the full BTC boot so we can diagnose
 // whether the issue is route mounting or trading loop initialization.
 app.get("/api/btc/status", (_req, res) => {
+  console.log('[DIAG] /api/btc/status called at', new Date().toISOString());
   const engine = globalThis.__tradingEngine;
+  console.log('[DIAG] globalThis.__tradingEngine:', !!engine, 'btcMounted:', globalThis.__btcMounted);
   res.json({
     ok: true,
     mode: 'live',

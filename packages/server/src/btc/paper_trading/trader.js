@@ -1175,7 +1175,7 @@ export class Trader {
           // Set epoch: skip until market settlement (slug epoch + 300s for 5m)
           const match = String(marketSlug).match(/(\d{10})$/);
           if (match) {
-            this._pendingSkipUntilEpoch = Number(match[1]) + 300;
+            this._pendingSkipUntilEpoch = Number(match[1]);
             console.log(`[BTC] Skip market set: ${marketSlug}, skip until epoch ${this._pendingSkipUntilEpoch}`);
           } else {
             this._pendingSkipUntilEpoch = null;
@@ -1290,7 +1290,7 @@ export class Trader {
         if (trade?.marketSlug) {
           this.skipMarketUntilNextSlug = trade.marketSlug;
           const match = String(trade.marketSlug).match(/(\d{10})$/);
-          this._pendingSkipUntilEpoch = match ? Number(match[1]) + 300 : null;
+          this._pendingSkipUntilEpoch = match ? Number(match[1]) : null;
           console.log(`[BTC] Skip market set (pnl-cap): ${trade.marketSlug}`);
         }
       }

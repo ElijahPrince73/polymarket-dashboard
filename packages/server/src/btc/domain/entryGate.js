@@ -285,7 +285,7 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     if (skipSlugMatch) {
       const durationSec = state.skipMarketUntilNextSlug.includes('15m') ? 900 : 300;
       const settlementMs = (Number(skipSlugMatch[1]) + durationSec) * 1000;
-      if (Date.now() > settlementMs) {
+      if (Date.now() / 1000 > skipEpoch) {
         state.skipMarketUntilNextSlug = null;
       }
     } else {

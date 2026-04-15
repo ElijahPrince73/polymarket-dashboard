@@ -36,6 +36,10 @@ export class Trader {
     // Track last candle close per market slug — used to price positions on market rollover
     this._lastCandlePriceBySlug = new Map();
 
+    // Epoch-based skip: after a trade exits, skip entries until this epoch has passed.
+    // Prevents multiple trades when the API switches slug ~60s before old market settles.
+    this._pendingSkipUntilEpoch = null;
+
     // Debug / UI: why we did or didn't enter on the last check
     this.lastEntryStatus = {
       at: null,
@@ -414,19 +418,32 @@ export class Trader {
         : false;
 
     // One trade per market: skip entries until the slug changes.
+    // IMPORTANT: Polymarket API switches to the new slug ~60s BEFORE settlement.
+    // Using slug change alone allows a new trade to open before the old market settles,
+    // creating multiple trades per market window (old settles → Market Rollover → new trade).
+    // Instead, we track the epoch of the market we want to skip and only clear it after
+    // the old market's settlement time has passed (epoch + 300s for 5m markets).
+    const openTrade = this.openTrade;
+    const pendingSkipEpoch = this._pendingSkipUntilEpoch;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const skipExpired = pendingSkipEpoch !== null && nowSec >= pendingSkipEpoch;
+
+    // Clear expired skip by epoch time (not slug change — that fires too early)
+    if (skipExpired && this._pendingSkipUntilEpoch !== null) {
+      console.log(`[BTC] Skip market cleared: epoch ${this._pendingSkipUntilEpoch} has settled`);
+      this._pendingSkipUntilEpoch = null;
+      this.skipMarketUntilNextSlug = null;
+    }
+
     const inSkipMarket = Boolean(
       this.skipMarketUntilNextSlug &&
       marketSlug &&
       marketSlug !== 'unknown' &&
-      this.skipMarketUntilNextSlug === marketSlug,
+      this.skipMarketUntilNextSlug === marketSlug
     );
     // Debug: log skip state when it's set
-    if (this.skipMarketUntilNextSlug && !this.openTrade) {
-      console.log(`[BTC] Skip check: skip=${this.skipMarketUntilNextSlug}, current=${marketSlug}, match=${inSkipMarket}`);
-    }
-    if (this.skipMarketUntilNextSlug && marketSlug && marketSlug !== 'unknown' && this.skipMarketUntilNextSlug !== marketSlug) {
-      console.log(`[BTC] Skip market cleared: was ${this.skipMarketUntilNextSlug}, now ${marketSlug}`);
-      this.skipMarketUntilNextSlug = null;
+    if (this.skipMarketUntilNextSlug && !openTrade) {
+      console.log(`[BTC] Skip check: skip=${this.skipMarketUntilNextSlug}, current=${marketSlug}, match=${inSkipMarket}, pendingEpoch=${this._pendingSkipUntilEpoch}`);
     }
 
     // Require core indicators to be populated (prevents 50/50 / undefined warm states)
@@ -1144,6 +1161,14 @@ export class Trader {
         // it's set before the next tick can evaluate entry.
         if (marketSlug) {
           this.skipMarketUntilNextSlug = marketSlug;
+          // Set epoch: skip until market settlement (slug epoch + 300s for 5m)
+          const match = String(marketSlug).match(/(\d{10})$/);
+          if (match) {
+            this._pendingSkipUntilEpoch = Number(match[1]) + 300;
+            console.log(`[BTC] Skip market set: ${marketSlug}, skip until epoch ${this._pendingSkipUntilEpoch}`);
+          } else {
+            this._pendingSkipUntilEpoch = null;
+          }
         }
 
         const exitPrice = effectivePriceForSide(trade.side);
@@ -1253,6 +1278,8 @@ export class Trader {
         // Also set skip-market here in case it wasn't set before closeTrade was called
         if (trade?.marketSlug) {
           this.skipMarketUntilNextSlug = trade.marketSlug;
+          const match = String(trade.marketSlug).match(/(\d{10})$/);
+          this._pendingSkipUntilEpoch = match ? Number(match[1]) + 300 : null;
           console.log(`[BTC] Skip market set (pnl-cap): ${trade.marketSlug}`);
         }
       }
@@ -1271,6 +1298,8 @@ export class Trader {
     // Prevents giving back gains with follow-up trades in the same 5-minute window.
     if (trade?.marketSlug) {
       this.skipMarketUntilNextSlug = trade.marketSlug;
+      const match = String(trade.marketSlug).match(/(\d{10})$/);
+      this._pendingSkipUntilEpoch = match ? Number(match[1]) + 300 : null;
       console.log(`[BTC] Skip market set (one-trade-per-market): ${trade.marketSlug} (after ${reason})`);
     }
 

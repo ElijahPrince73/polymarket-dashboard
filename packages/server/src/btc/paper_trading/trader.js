@@ -417,34 +417,45 @@ export class Trader {
         ? Date.now() - this.lastWinAtMs < winCooldownSec * 1000
         : false;
 
-    // One trade per market: skip entries until the slug changes.
-    // IMPORTANT: Polymarket API switches to the new slug ~60s BEFORE settlement.
-    // Using slug change alone allows a new trade to open before the old market settles,
-    // creating multiple trades per market window (old settles → Market Rollover → new trade).
-    // Instead, we track the epoch of the market we want to skip and only clear it after
-    // the old market's settlement time has passed (epoch + 300s for 5m markets).
-    const openTrade = this.openTrade;
+    // One trade per market: skip rest of 5m window after any exit.
+    // Cross-timeframe isolation: only block if the current market is the SAME timeframe.
+    // We store the epoch (not full slug) in _pendingSkipEpoch so cross-timeframe matches can't happen.
     const pendingSkipEpoch = this._pendingSkipUntilEpoch;
     const nowSec = Math.floor(Date.now() / 1000);
     const skipExpired = pendingSkipEpoch !== null && nowSec >= pendingSkipEpoch;
 
-    // Clear expired skip by epoch time (not slug change — that fires too early)
+    // Clear expired skip by time (not by slug change — slug change fires too early)
     if (skipExpired && this._pendingSkipUntilEpoch !== null) {
       console.log(`[BTC] Skip market cleared: epoch ${this._pendingSkipUntilEpoch} has settled`);
       this._pendingSkipUntilEpoch = null;
       this.skipMarketUntilNextSlug = null;
     }
 
-    const inSkipMarket = Boolean(
-      this.skipMarketUntilNextSlug &&
-      marketSlug &&
-      marketSlug !== 'unknown' &&
-      this.skipMarketUntilNextSlug === marketSlug
-    );
-    // Debug: log skip state when it's set
-    if (this.skipMarketUntilNextSlug && !openTrade) {
-      console.log(`[BTC] Skip check: skip=${this.skipMarketUntilNextSlug}, current=${marketSlug}, match=${inSkipMarket}, pendingEpoch=${this._pendingSkipUntilEpoch}`);
-    }
+    // Only apply skip to the SAME TIMEFRAME market. 5m skip blocks 5m, 15m skip blocks 15m.
+    const marketIs5m = marketSlug?.includes('5m') ?? false;
+    const marketIs15m = marketSlug?.includes('15m') ?? false;
+    const currentTimeframe = marketIs5m ? '5m' : marketIs15m ? '15m' : null;
+
+    // inSkipMarket: only true when current market is the SAME timeframe as the skip
+    const inSkipMarket = pendingSkipEpoch !== null &&
+      currentTimeframe !== null &&
+      (() => {
+        // Check if the skip was for the same epoch and same timeframe
+        if (!this.skipMarketUntilNextSlug) return false;
+        const skipMatch = String(this.skipMarketUntilNextSlug).match(/(\d{10})/);
+        if (!skipMatch) return false;
+        const skipEpoch = Number(skipMatch[1]);
+        // Only block if this market's epoch matches the skip AND timeframe matches
+        const currentEpochMatch = String(marketSlug).match(/(\d{10})/);
+        if (!currentEpochMatch) return false;
+        const currentEpoch = Number(currentEpochMatch[1]);
+        const sameEpoch = skipEpoch === currentEpoch;
+        // Same-epoch same-timeframe check
+        const skipIs5m = this.skipMarketUntilNextSlug.includes('5m');
+        const skipIs15m = this.skipMarketUntilNextSlug.includes('15m');
+        const sameTimeframe = (currentTimeframe === '5m' && skipIs5m) || (currentTimeframe === '15m' && skipIs15m);
+        return sameEpoch && sameTimeframe;
+      })();
 
     // Require core indicators to be populated (prevents 50/50 / undefined warm states)
     const ind = signals.indicators ?? {};

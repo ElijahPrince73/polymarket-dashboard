@@ -47,23 +47,32 @@ app.get("/api/health", (_req, res) => {
       weather: {
         initialized: true,
       },
+      routes: {
+        btc: !!globalThis.__btcMounted,
+        btc15m: !!globalThis.__btc15mMounted,
+      },
     },
+  });
+});
+
+// ── Standalone BTC status (no module dependency) ─────────────────────────
+// This endpoint is mounted BEFORE the full BTC boot so we can diagnose
+// whether the issue is route mounting or trading loop initialization.
+app.get("/api/btc/status", (_req, res) => {
+  const engine = globalThis.__tradingEngine;
+  res.json({
+    ok: true,
+    mode: 'live',
+    tradingEnabled: engine?.tradingEnabled ?? false,
+    lastTick: globalThis.__uiStatus?.lastUpdate ?? null,
+    mounted: globalThis.__btcMounted ?? false,
+    engineAvailable: !!engine,
   });
 });
 
 // ── Analytics routes (standalone, no bot dependency) ───────────────────
 import analyticsRouter from './routes/analytics.js';
 app.use('/api/analytics', analyticsRouter);
-
-// ── TEST: Direct BTC route mount (bypass boot.js) ─────────────────────
-// Remove this after debugging
-try {
-  const { mountBtcRoutes } = await import('./btc/ui/server.js');
-  mountBtcRoutes(app, '/api/btc');
-  console.log('[Boot] Direct BTC route mount succeeded (test)');
-} catch(err) {
-  console.error('[Boot] Direct BTC route mount FAILED:', err.message, err.stack);
-}
 
 // ── Boot sequence ──────────────────────────────────────────────────────
 

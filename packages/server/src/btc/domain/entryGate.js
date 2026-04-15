@@ -277,6 +277,7 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
   // ── 5. One trade per market: skip rest of 5m window after any exit ──
   const marketSlug = signals.market?.slug;
   const oneTradePerMarket = config.oneTradePerMarket ?? true;
+  // One trade per market: skip rest of 5m window after any exit.
   // Clear skip ONLY based on time — the skipped market must have settled.
   // Never clear based on slug change alone (Polymarket API flickers between slugs).
   if (state.skipMarketUntilNextSlug) {
@@ -295,7 +296,32 @@ export function computeEntryBlockers(signals, config, state, candleCount) {
     }
   }
   if (oneTradePerMarket && marketSlug) {
+    // Primary check: epoch + timeframe isolation.
+    // Only block same-epoch SAME-TIMEFRAME entries. Prevents 5m/15m cross-pollution.
+    let blockedBySkip = false;
+    if (state.skipMarketUntilNextSlug) {
+      const currentEpochMatch = String(marketSlug).match(/(\d+)$/);
+      const skipEpochMatch = String(state.skipMarketUntilNextSlug).match(/(\d+)$/);
+      if (currentEpochMatch && skipEpochMatch) {
+        const currentEpoch = Number(currentEpochMatch[1]);
+        const skipEpoch = Number(skipEpochMatch[1]);
+        if (currentEpoch === skipEpoch) {
+          // Must also be same timeframe
+          const marketIs5m = marketSlug.includes('5m');
+          const marketIs15m = marketSlug.includes('15m');
+          const currentTimeframe = marketIs5m ? '5m' : marketIs15m ? '15m' : null;
+          const skipIs5m = state.skipMarketUntilNextSlug.includes('5m');
+          const skipIs15m = state.skipMarketUntilNextSlug.includes('15m');
+          const sameTimeframe = (currentTimeframe === '5m' && skipIs5m) || (currentTimeframe === '15m' && skipIs15m);
+          if (sameTimeframe) blockedBySkip = true;
+        }
+      }
+    }
+    // Fallback: old slug-string check (kept as belt-and-suspenders)
     if (state.skipMarketUntilNextSlug && state.skipMarketUntilNextSlug === marketSlug) {
+      blockedBySkip = true;
+    }
+    if (blockedBySkip) {
       blockers.push('One trade per market (wait for next market)');
     }
     // Debug: log when a trade would be allowed on a slug we just exited

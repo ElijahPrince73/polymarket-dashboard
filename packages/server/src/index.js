@@ -64,11 +64,14 @@ async function boot() {
   // 1. Mount ALL routes first (before any engine initialization)
   let btc, weather;
   try {
+    console.log("[Boot] Importing ./btc/boot.js at", new Date().toISOString());
     btc = await import("./btc/boot.js");
+    console.log("[Boot] BTC boot imported, exports:", Object.keys(btc), 'mountRoutes type:', typeof btc.mountRoutes);
     btc.mountRoutes(app);
     btc.mountRoutes15m(app);
+    console.log("[Boot] BTC routes mounted successfully");
   } catch (err) {
-    console.error("[Boot] BTC route mounting failed:", err.message);
+    console.error("[Boot] BTC route mounting failed:", err.message, err.stack);
   }
   try {
     weather = await import("./weather/boot.js");

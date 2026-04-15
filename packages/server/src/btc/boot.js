@@ -20,7 +20,9 @@ let _modeManager15m = null;
  * Mount BTC API routes on the given Express app.
  */
 export function mountRoutes(app) {
+  console.log('[BTC] boot.js mountRoutes() called at', new Date().toISOString());
   mountBtcRoutes(app, '/api/btc');
+  console.log('[BTC] mountBtcRoutes returned OK');
 }
 
 export function mountRoutes15m(app) {

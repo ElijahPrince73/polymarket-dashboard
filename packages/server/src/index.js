@@ -66,6 +66,11 @@ app.get("/api/btc/diag", (_req, res) => {
   });
 });
 
+// Test wildcard below /api/btc/ — if this also returns HTML, the catch-all is interfering
+app.get("/api/test", (_req, res) => {
+  res.json({ ok: true, test: true, path: '/api/test' });
+});
+
 // ── Standalone BTC status (no module dependency) ─────────────────────────
 // This endpoint is mounted BEFORE the full BTC boot so we can diagnose
 // whether the issue is route mounting or trading loop initialization.

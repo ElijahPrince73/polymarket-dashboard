@@ -265,21 +265,27 @@ export class LiveTrader {
         // 2) Rollover exit (position token should be tied to a market; best-effort: if market slug changes, still ok)
         // (We don't have per-position slug mapping here; rely on pre-settlement mostly.)
 
-        // 3) Hard max loss cap (with optional grace window)
-        const maxLossUsd = CONFIG.paperTrading.maxLossUsdPerTrade ?? 15;
-        const graceEnabled = CONFIG.paperTrading.maxLossGraceEnabled ?? false;
-        const graceSeconds = CONFIG.paperTrading.maxLossGraceSeconds ?? 0;
-        const recoverUsd = CONFIG.paperTrading.maxLossRecoverUsd ?? null;
-        const requireModelSupport =
-          CONFIG.paperTrading.maxLossGraceRequireModelSupport ?? false;
+        // 3) Hard max loss cap — use dynamic (% of position) when enabled, else fixed USD
+        const dynamicEnabled = CONFIG.liveTrading?.dynamicStopLossEnabled ?? false;
+        const contractSize = Math.abs(Number(p.contractSize || 0));
+        let maxLossAbs;
+        if (dynamicEnabled && contractSize > 0) {
+          const pct = CONFIG.liveTrading.dynamicStopLossPct ?? 0.30;
+          const raw = contractSize * pct;
+          const min = CONFIG.liveTrading.minMaxLossUsd ?? 0;
+          const max = CONFIG.liveTrading.maxMaxLossUsd ?? 50;
+          maxLossAbs = Math.min(Math.max(raw, min), max);
+        } else {
+          maxLossAbs = Math.abs(CONFIG.paperTrading.maxLossUsdPerTrade ?? 15);
+        }
 
-        if (
-          u !== null &&
-          typeof maxLossUsd === 'number' &&
-          Number.isFinite(maxLossUsd) &&
-          maxLossUsd > 0
-        ) {
-          const maxLossAbs = Math.abs(maxLossUsd);
+        const graceEnabled = CONFIG.liveTrading?.maxLossGraceEnabled ?? false;
+        const graceSeconds = CONFIG.liveTrading?.maxLossGraceSeconds ?? 0;
+        const recoverUsd = CONFIG.liveTrading?.maxLossRecoverUsd ?? null;
+        const requireModelSupport =
+          CONFIG.liveTrading?.maxLossGraceRequireModelSupport ?? false;
+
+        if (u !== null && maxLossAbs > 0) {
           const breached = u <= -maxLossAbs;
 
           // model support: require side prob >= 0.55 and >= opposite

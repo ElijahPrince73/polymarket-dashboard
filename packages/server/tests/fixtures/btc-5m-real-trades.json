@@ -1,0 +1,10 @@
+{
+  "description": "Real Polymarket BTC-5m tick data - note: very sparse (1-2 trades per 5m market)",
+  "capturedAt": "2026-04-15T03:41:18.758Z",
+  "serverTimeEpoch": 1776224478,
+  "marketSlug": "btc-updown-5m-1776224400",
+  "marketEndDate": "2026-04-15T03:45:00Z",
+  "upToken": "[",
+  "downToken": "\"",
+  "note": "The prices-history API has a serialization bug in clob-client (treats token as array). Direct fetch works."
+}

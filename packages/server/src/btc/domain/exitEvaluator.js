@@ -192,12 +192,15 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
       return (Number(match[1]) + durationSec) * 1000; // slug epoch + market duration
     })();
 
-    const settled = positionSettlementMs && Date.now() > positionSettlementMs;
+    // Guard against stale slug epochs: if positionSettlementMs is in the past,
+    // the slug epoch is stale. Don't treat it as settled — fall through and let
+    // the current market's endDate govern behavior.
+    const settled = positionSettlementMs && positionSettlementMs > now;
     if (settled) {
       result.decision = { reason: 'Market Rollover' };
       return result;
     }
-    // If not settled yet, this is just the API showing the next market early - ignore
+    // If posSettlementMs <= now (stale): the API may show the next market early — ignore
   }
 
   // ── 2. Pre-settlement exit ───────────────────────────────────────
@@ -209,7 +212,13 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
     if (slugMatch) {
       const durationSec = position.marketSlug.includes('15m') ? 900 : 300;
       const posSettlementMs = (Number(slugMatch[1]) + durationSec) * 1000;
-      positionTimeLeftMin = (posSettlementMs - now) / 60000;
+      // Guard against stale slug epochs (e.g., old fixture data or wrapped markets).
+      // If the derived settlement time is in the past, the slug is stale — fall back
+      // to timeLeftForExit which uses the current market's endDate.
+      if (posSettlementMs > now) {
+        positionTimeLeftMin = (posSettlementMs - now) / 60000;
+      }
+      // If posSettlementMs <= now: keep positionTimeLeftMin = timeLeftForExit (fallback)
     }
   }
   if (isNum(positionTimeLeftMin) && positionTimeLeftMin < exitBeforeEndMin) {

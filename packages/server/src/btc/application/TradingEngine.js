@@ -107,8 +107,9 @@ export class TradingEngine {
    *
    * @param {Object} signals  - The unified signals bundle (from buildSignals)
    * @param {Array} klines1m  - 1-minute candle array (for candle count)
+   * @param {number} [nowMs]  - Current time in ms, injectable for tests
    */
-  async processSignals(signals, klines1m) {
+  async processSignals(signals, klines1m, nowMs) {
     const mode = this.executor.getMode();
     const rec = signals?.rec;
     if (rec?.action && rec.action !== 'NO_TRADE') {
@@ -213,7 +214,7 @@ export class TradingEngine {
         );
       }
 
-      const exitResult = evaluateExits(p, signals, this.config, graceState);
+      const exitResult = evaluateExits(p, signals, this.config, graceState, nowMs ?? Date.now());
 
       // ── DEBUG: Log exit decision ───────────────────────────────
       if (evalMode === 'live' && exitResult.decision) {
@@ -313,6 +314,10 @@ export class TradingEngine {
           console.log(
             `[LIVE EXIT DEBUG] >>> CALLING closePosition: tradeId=${p.id} side=${p.side} shares=${p.shares} reason=${reason}`
           );
+        }
+
+        if (exitResult.pnlNow !== null && typeof this.executor.setLastExitPnl === 'function') {
+          await this.executor.setLastExitPnl(exitResult.pnlNow);
         }
 
         try {

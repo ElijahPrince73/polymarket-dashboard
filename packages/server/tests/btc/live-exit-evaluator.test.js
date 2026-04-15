@@ -444,3 +444,184 @@ describe('live-exit-evaluator — stop loss with mock CLOB data', () => {
     });
   });
 });
+  // ═══════════════════════════════════════════════════════════════
+  // STOP LOSS TIME-SERIES TEST
+  // Simulates a trade degrading over multiple ticks and verifies
+  // the exit evaluator fires the stop loss at exactly 30%.
+  //
+  // Test case: UP trade, entry at 45¢, 100 shares, $45 position
+  // 30% stop loss = -$13.50 PnL threshold
+  // Stop fires when mark <= 31.5¢ (entry - 30% = 0.315)
+  // ═══════════════════════════════════════════════════════════════
+
+  describe('stop loss fires at exactly 30% on time-series', () => {
+    it('should exit when PnL crosses 30% loss threshold (no grace, UP trade)', () => {
+      const ENTRY_PRICE = 0.45;   // 45¢ entry
+      const SHARES = 100;
+      const CONTRACT_SIZE = ENTRY_PRICE * SHARES;  // $45
+      const STOP_LOSS_PCT = 0.30;
+      const STOP_LOSS_AMOUNT = -CONTRACT_SIZE * STOP_LOSS_PCT;  // -$13.50
+
+      // Price path: 55¢ (green) → 50¢ → 45¢ → 40¢ → 35¢ → 30¢ (stop fires)
+      // At 55¢: PnL = 100 * (0.55 - 0.45) = +$10 (22% gain)
+      // At 50¢: PnL = 100 * (0.50 - 0.45) = +$5 (11% gain)
+      // At 45¢: PnL = $0 (at entry)
+      // At 40¢: PnL = -$5 (-11% loss)
+      // At 35¢: PnL = -$10 (-22% loss)
+      // At 30¢: PnL = -$15 (-33% loss) → > 30% threshold
+      const PRICE_TICKS = [0.55, 0.50, 0.45, 0.40, 0.35, 0.30];
+      const EXPECTED_EXIT_TICK = 5;  // 0-indexed: tick 5 (mark=30¢, PnL=-15) is where stop fires
+
+      const position = {
+        id: 'ts-test-up',
+        side: 'UP',
+        tokenID: '0xtoken123',
+        shares: SHARES,
+        contractSize: CONTRACT_SIZE,
+        mark: null,
+        unrealizedPnl: null,
+        entryTime: null,
+        lastTradeTime: Math.floor(NOW / 1000),  // trade just started
+        marketSlug: 'btc-updown-5m-' + Math.floor(NOW / 1000),
+        maxUnrealizedPnl: 0,
+        minUnrealizedPnl: 0,
+        outcome: 'UP',
+      };
+
+      const signals = makeSignals({
+        market: {
+          slug: position.marketSlug,
+          endDate: new Date(NOW + 240_000).toISOString(),
+          liquidityNum: 50000,
+        },
+      });
+
+      // Simulate each price tick
+      for (let i = 0; i < PRICE_TICKS.length; i++) {
+        const mark = PRICE_TICKS[i];
+        position.mark = mark;
+        // PnL in dollars: shares * (current price in $ - entry price in $)
+        position.unrealizedPnl = SHARES * (mark - ENTRY_PRICE);
+        // Advance trade age by 2 seconds per tick
+        position.lastTradeTime = Math.floor((NOW + i * 2_000) / 1000);
+        if (position.entryTime) {
+          position.entryTime = new Date(NOW + i * 2_000).toISOString();
+        }
+
+        const result = evaluateExits(position, signals, LIVE_CONFIG, { breachAtMs: null, used: false }, NOW + i * 2_000);
+
+        if (i < EXPECTED_EXIT_TICK) {
+          // Before stop fires: PnL should be above 30% threshold
+          expect(result.decision, `Tick ${i}: mark=${mark}¢, PnL=$${position.unrealizedPnl.toFixed(2)} (above -$13.50, no exit)`).toBeNull();
+        } else if (i === EXPECTED_EXIT_TICK) {
+          // Exactly at the stop-loss tick: should fire
+          expect(result.decision, `Tick ${i}: mark=${mark}¢, PnL=$${position.unrealizedPnl.toFixed(2)} (should exit at exactly 30% threshold)`).not.toBeNull();
+          expect(result.decision.reason).toContain('Max Loss');
+        }
+      }
+    });
+
+    it('should NOT exit early even if PnL briefly spikes negative before recovering', () => {
+      const ENTRY_PRICE = 0.50;   // 50¢ entry
+      const SHARES = 100;
+      const CONTRACT_SIZE = ENTRY_PRICE * SHARES;  // $50
+
+      // Price path: 55¢ → 47¢ (brief red) → 52¢ (recovered, still above entry)
+      // PnL at 47¢: 100 * (0.47 - 0.50) = -$3 (not a stop loss at 30% = -$15)
+      const PRICE_TICKS = [0.55, 0.47, 0.52, 0.56];
+
+      const position = {
+        id: 'ts-recover-test',
+        side: 'UP',
+        tokenID: '0xtoken456',
+        shares: SHARES,
+        contractSize: CONTRACT_SIZE,
+        mark: null,
+        unrealizedPnl: null,
+        entryTime: null,
+        lastTradeTime: Math.floor(NOW / 1000),
+        marketSlug: 'btc-updown-5m-' + Math.floor(NOW / 1000),
+        maxUnrealizedPnl: 0,
+        minUnrealizedPnl: 0,
+        outcome: 'UP',
+      };
+
+      const signals = makeSignals({
+        market: {
+          slug: position.marketSlug,
+          endDate: new Date(NOW + 240_000).toISOString(),
+          liquidityNum: 50000,
+        },
+      });
+
+      for (let i = 0; i < PRICE_TICKS.length; i++) {
+        const mark = PRICE_TICKS[i];
+        position.mark = mark;
+        position.unrealizedPnl = SHARES * (mark - ENTRY_PRICE);
+        position.lastTradeTime = Math.floor((NOW + i * 2_000) / 1000);
+
+        const result = evaluateExits(position, signals, LIVE_CONFIG, { breachAtMs: null, used: false }, NOW + i * 2_000);
+
+        // Should NOT exit — PnL never crosses -30% threshold (-$15)
+        expect(result.decision, `Tick ${i}: mark=${mark}¢, PnL=$${position.unrealizedPnl.toFixed(2)}`).toBeNull();
+      }
+    });
+
+    it('should handle DOWN trade stop loss correctly', () => {
+      const ENTRY_PRICE = 0.55;   // 55¢ entry (bought DOWN side)
+      const SHARES = 100;
+      const CONTRACT_SIZE = ENTRY_PRICE * SHARES;  // $55
+      const STOP_LOSS_PCT = 0.30;
+      const STOP_LOSS_AMOUNT = -CONTRACT_SIZE * STOP_LOSS_PCT;  // -$16.50
+
+      // For DOWN trade, price going DOWN is good (PnL = shares * (entryPrice - currentPrice))
+      // 30% of $55 = $16.50 → stop fires when PnL <= -$16.50
+      // PnL = 100 * (0.55 - mark)
+      // At 65¢: PnL = -$10 (not triggered)
+      // At 70¢: PnL = -$15 (27.3% loss, NOT triggered — need <= -$16.50)
+      // At 71.5¢: PnL = -$16.50 (exactly 30%) → EXIT
+      const PRICE_TICKS = [0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.715];
+      const EXPECTED_EXIT_TICK = 6;  // stop fires at 71.5¢ (exactly 30% loss)
+
+      const position = {
+        id: 'ts-test-down',
+        side: 'DOWN',
+        tokenID: '0xtoken789',
+        shares: SHARES,
+        contractSize: CONTRACT_SIZE,
+        mark: null,
+        unrealizedPnl: null,
+        entryTime: null,
+        lastTradeTime: Math.floor(NOW / 1000),
+        marketSlug: 'btc-updown-5m-' + Math.floor(NOW / 1000),
+        maxUnrealizedPnl: 0,
+        minUnrealizedPnl: 0,
+        outcome: 'DOWN',
+      };
+
+      const signals = makeSignals({
+        market: {
+          slug: position.marketSlug,
+          endDate: new Date(NOW + 240_000).toISOString(),
+          liquidityNum: 50000,
+        },
+      });
+
+      for (let i = 0; i < PRICE_TICKS.length; i++) {
+        const mark = PRICE_TICKS[i];
+        position.mark = mark;
+        // DOWN trade PnL: shares * (entryPrice - currentPrice)
+        position.unrealizedPnl = SHARES * (ENTRY_PRICE - mark);
+        position.lastTradeTime = Math.floor((NOW + i * 2_000) / 1000);
+
+        const result = evaluateExits(position, signals, LIVE_CONFIG, { breachAtMs: null, used: false }, NOW + i * 2_000);
+
+        if (i < EXPECTED_EXIT_TICK) {
+          expect(result.decision, `Tick ${i}: mark=${mark}¢, PnL=$${position.unrealizedPnl.toFixed(2)} (above -$16.50, no exit)`).toBeNull();
+        } else if (i === EXPECTED_EXIT_TICK) {
+          expect(result.decision, `Tick ${i}: mark=${mark}¢, PnL=$${position.unrealizedPnl.toFixed(2)} (should exit at 30%)`).not.toBeNull();
+          expect(result.decision.reason).toContain('Max Loss');
+        }
+      }
+    });
+  });

@@ -163,7 +163,9 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
   if (pnlNow !== null && isNum(position.contractSize) && position.contractSize > 0) {
     const stopLossPct = config.dynamicStopLossPct ?? config.stopLossPct ?? 0.25;
     const stopLossAmount = -Math.abs(position.contractSize * stopLossPct);
-    stopLossHit = pnlNow <= stopLossAmount;
+    // Epsilon tolerance for floating-point comparisons (e.g., 0.55 * 100 = 55.00000000000001)
+    const EPSILON = 0.0001;
+    stopLossHit = pnlNow <= stopLossAmount + EPSILON;
   }
 
   // Liquidity check (for grace-window eligibility)
@@ -246,7 +248,9 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
 
   if (pnlNow !== null && isNum(maxLossUsd) && maxLossUsd > 0 && !withinMinHold) {
     const maxLossAbs = Math.abs(maxLossUsd);
-    const breached = pnlNow <= -maxLossAbs;
+    // Epsilon tolerance for floating-point comparisons
+    const EPSILON = 0.0001;
+    const breached = pnlNow <= -(maxLossAbs) + EPSILON;
 
     // Model still supports trade?
     const modelSupports =

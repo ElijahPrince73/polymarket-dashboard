@@ -33,6 +33,9 @@ export class Trader {
     // If we stop out via Max Loss, optionally skip the rest of that market (wait for next slug).
     this.skipMarketUntilNextSlug = null;
 
+    // Track last candle close per market slug — used to price positions on market rollover
+    this._lastCandlePriceBySlug = new Map();
+
     // Debug / UI: why we did or didn't enter on the last check
     this.lastEntryStatus = {
       at: null,
@@ -139,6 +142,21 @@ export class Trader {
     }
     if (!CONFIG.paperTrading.enabled) return;
     if (!this.tradingEnabled) return;
+
+    // Track last candle close per market slug — used for rollover exit pricing.
+    // The slug may have already changed to the new market, so we record the price
+    // keyed by the slug that was active WHEN the candle was observed.
+    if (Array.isArray(klines1m) && klines1m.length > 0) {
+      const lastCandle = klines1m[klines1m.length - 1];
+      if (lastCandle && typeof lastCandle.t === 'number' && typeof lastCandle.p === 'number') {
+        // Infer which market slug was active for this candle based on timestamp.
+        // BTC-5m markets: epoch = floor(timestamp / 300) * 300
+        // We store by epoch-derived slug so we can look up by the trade's market slug.
+        const epochSec = Math.floor(lastCandle.t);
+        const marketEpoch = Math.floor(epochSec / 300) * 300; // round down to 5m boundary
+        this._lastCandlePriceBySlug.set(String(marketEpoch), lastCandle.p);
+      }
+    }
 
     const candleCount = Array.isArray(klines1m) ? klines1m.length : 0;
     const minCandlesForEntry = CONFIG.paperTrading.minCandlesForEntry ?? 30;
@@ -817,18 +835,20 @@ export class Trader {
       let shouldFlip = false;
 
       // If the Polymarket market rolled to a new slug, close the old trade so it can't get "stuck".
-      // Note: we use the current market's contract price as a best-effort mark.
+      // Use the OLD market's last candle close as the settlement price (not the new market's price).
       if (trade.marketSlug && marketSlug && trade.marketSlug !== marketSlug) {
-        const exitPrice = effectivePriceForSide(trade.side);
-        if (exitPrice !== null) {
-          await this.closeTrade(trade, exitPrice, 'Market Rollover');
+        // Extract epoch from old market slug (e.g., "btc-updown-5m-1776265200" -> 1776265200)
+        const slugMatch = String(trade.marketSlug).match(/(\d{10})$/);
+        const oldEpoch = slugMatch ? slugMatch[1] : null;
+        const oldMarketLastPx = oldEpoch ? this._lastCandlePriceBySlug.get(oldEpoch) ?? null : null;
+        const oldSidePrice = oldMarketLastPx != null
+          ? (trade.side === 'UP' ? oldMarketLastPx / 100 : 1 - oldMarketLastPx / 100)
+          : null;
+        if (oldSidePrice !== null) {
+          await this.closeTrade(trade, oldSidePrice, 'Market Rollover');
         } else {
-          // If we can't fetch a live quote during rollover, force-close at entry to avoid being stuck open.
-          await this.closeTrade(
-            trade,
-            trade.entryPrice,
-            'Market Rollover (no quote)',
-          );
+          // Fallback: use entry price if we have no old market price
+          await this.closeTrade(trade, trade.entryPrice, 'Market Rollover (no quote)');
         }
         return;
       }
@@ -978,9 +998,21 @@ export class Trader {
         }
       }
 
-      // Hard max loss cap (USD): prevents a single trade from wiping out many small wins.
+      // Hard max loss cap: dynamic (% of position size) when enabled, else fixed USD
       // Optional grace window: when breached, wait briefly for recovery if conditions still support the trade.
-      const maxLossUsd = CONFIG.paperTrading.maxLossUsdPerTrade ?? null;
+      const dynamicEnabled = CONFIG.paperTrading.dynamicStopLossEnabled ?? false;
+      const contractSize = Math.abs(Number(trade.contractSize || 0));
+      let maxLossAbs;
+      if (dynamicEnabled && contractSize > 0) {
+        const pct = CONFIG.paperTrading.dynamicStopLossPct ?? 0.25;
+        const raw = contractSize * pct;
+        const min = CONFIG.paperTrading.minMaxLossUsd ?? 0;
+        const max = CONFIG.paperTrading.maxMaxLossUsd ?? 999;
+        maxLossAbs = Math.min(Math.max(raw, min), max);
+      } else {
+        const maxLossUsd = CONFIG.paperTrading.maxLossUsdPerTrade ?? 999;
+        maxLossAbs = Math.abs(maxLossUsd);
+      }
       const graceEnabled = CONFIG.paperTrading.maxLossGraceEnabled ?? false;
       const graceSeconds = CONFIG.paperTrading.maxLossGraceSeconds ?? 0;
       const recoverUsd = CONFIG.paperTrading.maxLossRecoverUsd ?? null;
@@ -990,11 +1022,8 @@ export class Trader {
       if (
         !shouldExit &&
         pnlNow !== null &&
-        typeof maxLossUsd === 'number' &&
-        Number.isFinite(maxLossUsd) &&
-        maxLossUsd > 0
+        maxLossAbs > 0
       ) {
-        const maxLossAbs = Math.abs(maxLossUsd);
         const breached = pnlNow <= -maxLossAbs;
 
         // Compute a simple "model still supports trade" check

@@ -424,47 +424,6 @@ export function evaluateExits(position, signals, config, graceState, nowMs) {
 
   // ── 6b. Stagnation exit — trade going nowhere after threshold ───
   // Trades >30s with flat PnL are more likely to eventually hit max loss than recover.
-  // ── 5b. Tiered Take Profit — data-driven profit protection ─────
-  // Simulation over 113 trades: turned -$1 into +$390.
-  // Logic: lower the TP threshold as time passes.
-  //   - After 120s: take $10+
-  //   - After 180s: take $5+
-  //   - After 250s: take any green (protect gains before settlement)
-  //   - Otherwise: ride to settlement
-  const tieredTpEnabled = config.tieredTakeProfitEnabled ?? true;
-  if (tieredTpEnabled && pnlNow !== null && isNum(tradeAgeSec)) {
-    // Simple percentage TP + force exit at 250s
-    const posSize = position.contractSize ?? 80;
-    const tpPct = config.takeProfitPct ?? 0.15; // 15% of position
-    const tpThreshold = posSize * tpPct;
-
-    // Take profit at 15%
-    if (pnlNow >= tpThreshold) {
-      result.decision = {
-        reason: `Take Profit ($${pnlNow.toFixed(2)}, ${(tpPct * 100).toFixed(0)}% of $${posSize.toFixed(0)})`
-      };
-      return result;
-    }
-
-    // Early cut — if not green by 45s, the trade is likely wrong
-    // Data: winners avg 18s, median 12s. If you're not winning fast, cut.
-    const earlyCutSec = config.earlyCutSec ?? 45;
-    if (tradeAgeSec >= earlyCutSec && pnlNow <= 0) {
-      result.decision = {
-        reason: `Early Cut ($${pnlNow.toFixed(2)} after ${tradeAgeSec.toFixed(0)}s — not green)`
-      };
-      return result;
-    }
-
-    // Force exit at 250s — don't ride losses to settlement
-    if (tradeAgeSec >= 250) {
-      result.decision = {
-        reason: `Force Exit ($${pnlNow.toFixed(2)} after ${tradeAgeSec.toFixed(0)}s)`
-      };
-      return result;
-    }
-  }
-
   // v1.0.7 data: trades >25s had 36% WR and +$0.55 avg PnL.
   const stagnationSeconds = config.stagnationExitSeconds ?? 0;
   const stagnationBandUsd = config.stagnationBandUsd ?? 2;

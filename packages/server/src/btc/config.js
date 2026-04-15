@@ -209,10 +209,6 @@ export const CONFIG = {
     // Data: 52/171 direction-correct trades lost to early SL
     stopLossGraceSec: 20,
 
-    // Early cut — exit if not green after N seconds
-    // Data: winners avg 18s, median 12s. Not green by 30s = likely wrong
-    // v2.1 data: 45s only fired once. Tightened to 30s.
-    earlyCutSec: 30,
     winCooldownSeconds: 0,
 
     // Daily loss limit: kill-switch threshold (applies to BOTH paper and live modes)
@@ -299,12 +295,6 @@ export const CONFIG = {
       { above: 15, dd: 4.0 },
       { above: 8, dd: 3.0 },
     ],
-
-    // Legacy/unused
-    takeProfitPct: 0.15, // 15% of position (only used when tieredTakeProfitEnabled is true)
-    // Disabled: with price-asymmetry strategy, ride winners to settlement.
-    // At 30c entry, settlement win = $0.70/share. TP at 15% captures only 6% of potential.
-    tieredTakeProfitEnabled: false,
 
     // Dynamic exit: close when opposite side becomes more likely.
     // Example: if you're in UP and modelDown >= modelUp + exitFlipMargin AND modelDown >= exitFlipMinProb → exit.
@@ -566,7 +556,6 @@ export const CONFIG_15M = (() => {
     rsiBiasEnabled: true,      // align cheap side with momentum — works on 15m timeframe
     rsiBearishThreshold: 40,
     rsiBullishThreshold: 60,
-    earlyCutSec: 90,
     stopLossGraceSec: 60,
     lossCooldownMinutes: 15,
     dynamicStopLossPct: 0.15,

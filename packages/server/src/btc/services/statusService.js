@@ -186,7 +186,6 @@ export async function assembleStatus(options = {}) {
       tradingHoursEnabled: config.paperTrading.tradingHoursEnabled ?? false,
       tradingHoursStart: config.paperTrading.tradingHoursStart ?? 6,
       tradingHoursEnd: config.paperTrading.tradingHoursEnd ?? 17,
-      earlyCutSec: config.paperTrading.earlyCutSec ?? 45,
       stopLossGraceSec: config.paperTrading.stopLossGraceSec ?? 20,
       lossCooldownEnabled: config.paperTrading.lossCooldownEnabled ?? true,
       lossCooldownMinutes: config.paperTrading.lossCooldownMinutes ?? 5,

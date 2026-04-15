@@ -213,19 +213,12 @@ export class TradingEngine {
         );
       }
 
-      const exitResult = p._forceExit
-        ? {
-          decision: {
-            action: 'EXIT',
-            reason: p._forceExitReason || 'Forced exit: null PnL for 3 ticks',
-          },
-        }
-        : evaluateExits(p, signals, this.config, graceState);
+      const exitResult = evaluateExits(p, signals, this.config, graceState);
 
       // ── DEBUG: Log exit decision ───────────────────────────────
       if (evalMode === 'live' && exitResult.decision) {
         console.log(
-          `[LIVE EXIT DEBUG] >>> EXIT DECISION: ${exitResult.decision.action} reason=${exitResult.decision.reason} pnlNow=${exitResult.pnlNow}`
+          `[LIVE EXIT DEBUG] >>> EXIT DECISION: reason=${exitResult.decision.reason} pnlNow=${exitResult.pnlNow}`
         );
       }
 
@@ -316,7 +309,7 @@ export class TradingEngine {
         this._tradeStartMs = null;
 
         // ── DEBUG: Log before attempting close ───────────────────
-        if (evalMode === 'live') {
+        if (this.executor.getMode() === 'live') {
           console.log(
             `[LIVE EXIT DEBUG] >>> CALLING closePosition: tradeId=${p.id} side=${p.side} shares=${p.shares} reason=${reason}`
           );
@@ -344,7 +337,6 @@ export class TradingEngine {
 
             // Clean up position tracking
             this.state.clearPosition(posId);
-            this._nullPnlCountByPos.delete(posId);
 
             console.log(
               `${closeResult.pnl >= 0 ? '✅' : '❌'} [${mode}] CLOSED: ${p.side} | PnL: $${closeResult.pnl?.toFixed(2)} | ${reason}`,

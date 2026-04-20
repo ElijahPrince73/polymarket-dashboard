@@ -737,8 +737,13 @@ export const MIN_ABS_MODEL_DIFF = 0.12; // Raised from 0.08 to 0.12 for higher c
 export const MIN_HOURS_TO_CLOSE = 3;
 export const MIN_MODEL_CONSENSUS = 4; // Require 4+ weather models to agree
 export const MIN_VOLUME = 50; // Weather markets are niche — most buckets are $100-$500
-export const MAX_DAILY_EXPOSURE_PCT = 0.25;
+export const MAX_DAILY_EXPOSURE_PCT = 0.35; // raised 2026-04-20 so 48 cities × 3 picks fit
 export const MAX_CITY_EXPOSURE_PCT = 0.04;
+// Minimum stake per proximity pick. Proximity-picking always takes the 3
+// buckets closest to forecast; Kelly sizes up from this floor when model
+// edge is positive. Without the floor, every bucket where modelProb ≤ price
+// gets sizePct = 0 and skipped, which kills coverage across most cities.
+export const MIN_STAKE_PER_PICK = 3;
 export const STOP_DAILY_DD_PCT = 0.05;
 export const SIGMA_F = 2.0;
 export const SIGMA_C = 1.2;

@@ -4,11 +4,11 @@ import {
   MAX_SLIPPAGE,
   MAX_CITY_EXPOSURE_PCT,
   MAX_DAILY_EXPOSURE_PCT,
-  MIN_ABS_MODEL_DIFF,
   MIN_HOURS_TO_CLOSE,
   MIN_MODEL_CONSENSUS,
   MIN_PRICE,
   MAX_PRICE,
+  MIN_STAKE_PER_PICK,
   MIN_VOLUME,
   SIGMA_C,
   SIGMA_F,
@@ -257,7 +257,10 @@ export async function runTradeDiscovery(dbApi = db) {
       const topBuckets = rangeCandidates.slice(0, 3);
 
       for (const bucket of topBuckets) {
-        let stakeUsd = bankroll * Math.min(bucket.sizePct, 0.06); // cap at 6% per trade
+        // Floor stake so proximity picks always enter; Kelly scales up when
+        // modelProb > yesPrice. Cap at 6% per trade (60$ on $1k bankroll).
+        const kellyStake = bankroll * Math.min(bucket.sizePct, 0.06);
+        let stakeUsd = Math.max(MIN_STAKE_PER_PICK, kellyStake);
 
         const candidateDate = dateStr || localDate;
         if (candidateDate !== tomorrowDate) {
@@ -271,7 +274,10 @@ export async function runTradeDiscovery(dbApi = db) {
         const remainingCity = Math.max(0, cityCap - (openStakeByCityDate.get(cityDateKey) ?? 0));
         stakeUsd = Math.max(0, Math.min(stakeUsd, remainingDaily, remainingCity));
 
-        if (stopForDay || stakeUsd <= 0.0001) continue;
+        // Skip only when the daily/city cap chops us below the floor (we've
+        // already committed to the 3-closest proximity pick, but respect
+        // the exposure guardrails).
+        if (stopForDay || stakeUsd < MIN_STAKE_PER_PICK) continue;
 
         const candidate = {
           city: city.name,

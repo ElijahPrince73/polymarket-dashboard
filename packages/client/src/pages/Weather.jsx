@@ -74,6 +74,8 @@ export default function Weather() {
   const [resultFilter, setResultFilter] = useState('ALL');
   const [pageSize, setPageSize] = useState(20);
   const [showLiveConfirm, setShowLiveConfirm] = useState(false);
+  const [tickBusy, setTickBusy] = useState(false);
+  const [tickStatus, setTickStatus] = useState(null); // { kind: 'ok' | 'err', message, at }
 
   async function refreshAll() {
     await Promise.all([refetchStatus(), refetchTrades(), refetchOpenOrders(), refetchLiveData(), refetchSummary()]);
@@ -105,8 +107,33 @@ export default function Weather() {
   }
 
   async function handleTick() {
-    await triggerWeatherTick();
-    await refreshAll();
+    if (tickBusy) return;
+    setTickBusy(true);
+    setTickStatus({ kind: 'pending', message: 'Running tick…', at: Date.now() });
+    try {
+      const result = await triggerWeatherTick();
+      const opened = Array.isArray(result?.trade?.opened)
+        ? result.trade.opened.length
+        : (result?.trade?.openedCount ?? result?.trade?.openedOrLogged ?? null);
+      const resolved = result?.resolve?.resolved ?? null;
+      const parts = [];
+      if (opened != null) parts.push(`${opened} opened`);
+      if (resolved != null) parts.push(`${resolved} resolved`);
+      setTickStatus({
+        kind: 'ok',
+        message: parts.length ? `Tick complete — ${parts.join(', ')}` : 'Tick complete',
+        at: Date.now(),
+      });
+    } catch (err) {
+      setTickStatus({
+        kind: 'err',
+        message: `Tick failed: ${err?.message || 'unknown error'}`,
+        at: Date.now(),
+      });
+    } finally {
+      setTickBusy(false);
+      await refreshAll();
+    }
   }
 
   async function handleKill() {
@@ -295,10 +322,33 @@ export default function Weather() {
               <button
                 type="button"
                 onClick={handleTick}
-                className="rounded-lg bg-[var(--border-visible)] px-4 py-1.5 text-sm font-medium text-[var(--text-display)] hover:bg-slate-600"
+                disabled={tickBusy}
+                className={`rounded-lg px-4 py-1.5 text-sm font-medium text-[var(--text-display)] transition-colors ${
+                  tickBusy
+                    ? 'bg-slate-700 cursor-wait opacity-70'
+                    : 'bg-[var(--border-visible)] hover:bg-slate-600'
+                }`}
               >
-                Run Tick
+                {tickBusy ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Running…
+                  </span>
+                ) : 'Run Tick'}
               </button>
+              {tickStatus && (
+                <span
+                  className={`text-xs ${
+                    tickStatus.kind === 'err'
+                      ? 'text-red-400'
+                      : tickStatus.kind === 'pending'
+                        ? 'text-slate-400'
+                        : 'text-green-400'
+                  }`}
+                >
+                  {tickStatus.message}
+                </span>
+              )}
               
               {/* Sync Database */}
               <button

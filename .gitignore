@@ -6,3 +6,5 @@ data/
 logs/
 live_trading/
 paper_trading/
+packages/server/scripts/backups/
+.DS_Store

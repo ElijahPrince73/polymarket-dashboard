@@ -28,7 +28,6 @@ packages/
 │       │   ├── config.js      # ALL config (hardcoded critical values)
 │       │   ├── engines/
 │       │   │   ├── momentum.js          # 8-signal weighted model (primary)
-│       │   │   ├── llmSignal.js         # Claude Haiku shadow predictor
 │       │   │   ├── orderbookImbalance.js # Polymarket orderbook
 │       │   │   └── edge.js              # Edge-based entry decisions
 │       │   ├── domain/
@@ -63,7 +62,6 @@ packages/
 | Stop Loss | 20% of position | Dynamic, floor $3, ceiling $50 |
 | Force Exit | 250 seconds | Don't ride losses to settlement |
 | Entry Delay | 2.5 min left | Wait for direction to establish |
-| LLM Signal | Shadow mode | Claude Haiku, fires at 3 min left, logged but doesn't trade |
 | Entry Filters | Minimal | One trade/market, no open position, valid data |
 | Starting Balance | $1,000 (paper) | Kelly sizes positions from this |
 
@@ -122,7 +120,6 @@ Run:   npm start
 
 Required env vars: `PRIVATE_KEY`, `CLOB_API_KEY`, `CLOB_SECRET`, `CLOB_PASSPHRASE`, `CLOB_HOST`, `CHAIN_ID`, `SIGNATURE_TYPE`, `FUNDER_ADDRESS`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POLYGON_WSS_URLS`
 
-Optional: `ANTHROPIC_API_KEY` (LLM shadow signal)
 
 ## Code Style
 - ESM imports (`import`/`export`)

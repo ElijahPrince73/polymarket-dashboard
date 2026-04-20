@@ -29,7 +29,7 @@ domain/sizing.js
 - `index.js` — main loop, works fine
 - `data/` — all market feeds (polymarket, binance, chainlink, kraken, CLOB WS)
 - `indicators/` — RSI, VWAP, MACD, Heiken Ashi
-- `engines/` — momentum, probability, edge, regime, llmSignal, orderbookImbalance
+- `engines/` — momentum, probability, edge, regime, orderbookImbalance
 - `services/` — polymarketService, settlementService, redeemService, analyticsService, etc.
 - `infrastructure/persistence/supabaseTradeStore.js` — trade persistence, works
 - `infrastructure/market/MarketCatalog.js`

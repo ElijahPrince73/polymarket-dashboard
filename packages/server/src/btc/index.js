@@ -35,7 +35,6 @@ import { detectRegime } from "./engines/regime.js";
 import { scoreDirection, applyTimeAwareness } from "./engines/probability.js";
 import { scoreMomentum, applyTimeAwarenessMomentum, recordPolyPrice } from "./engines/momentum.js";
 import { fetchOrderbookImbalance } from "./engines/orderbookImbalance.js";
-import { getLlmPrediction, clearLlmCache } from "./engines/llmSignal.js";
 import { computeEdge, decide } from "./engines/edge.js";
 
 // Utilities and Setup
@@ -195,7 +194,6 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
   const engineKey = is15m ? '__tradingEngine15m' : '__tradingEngine';
   const modeManagerKey = is15m ? '__modeManager15m' : '__modeManager';
   const statusKey = is15m ? '__uiStatus15m' : '__uiStatus';
-  const llmPredictionKey = is15m ? '__llmPrediction15m' : '__llmPrediction';
 
   // --- Phase 5: Startup environment validation ---
   logEnvValidation();
@@ -248,7 +246,6 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
   // getMarket thunk: lazily resolves the current Polymarket market
   let _cachedMarket = null;
   let _marketFetchedAt = 0;
-  let _lastLlmSlug = null; // Track which market slug we last called LLM for
   const getMarket = () => _cachedMarket;
   const refreshMarket = async () => {
     try {
@@ -624,7 +621,6 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
       timeLeftMin,
       orderbookImbalance: obImbalance,
       orderbookWall: obWall,
-      llmPrediction: globalThis[llmPredictionKey] ?? null,
     });
     const momentumTimeAware = applyTimeAwarenessMomentum(
       momentum.rawUp, timeLeftMin, config.candleWindowMinutes
@@ -657,38 +653,6 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
       ? (activeModelUp > activeModelDown ? "LONG" : "SHORT") : "NEUTRAL";
     // Override timeAware in signals with momentum model values
     const activeTimeAware = { adjustedUp: activeModelUp, adjustedDown: activeModelDown };
-    // ── LLM Signal (shadow mode — logs prediction, doesn't influence trades) ──
-    const currentSlug = polySnapshot.ok ? (polySnapshot.market?.slug ?? null) : null;
-    // Fire LLM at ~3 min left — gives 2 min of price data and response ready before 2.5 min entry window
-    const llmReady = currentSlug && currentSlug !== _lastLlmSlug && timeLeftMin !== null && timeLeftMin <= 3.0;
-    if (llmReady) {
-      _lastLlmSlug = currentSlug;
-      clearLlmCache();
-      // Fire LLM call async — result cached for this market window
-      getLlmPrediction({
-        marketSlug: currentSlug,
-        btcPrice: currentPrice,
-        priceHistory: spotTicks.slice(-10).map(t => t.price),
-        rsi: indicatorsData.rsiNow,
-        orderbookImbalance: obImbalance,
-        polyUp: polyPrices.UP,
-        polyDown: polyPrices.DOWN,
-        recentTrades: engine.executor?.recentTrades?.slice?.(-5) ?? [],
-        spotDelta1m: spotDelta1mPct,
-        spotDelta5s: momentum.signals?.spotDelta5s ?? null,
-        candles1m: klines1m,
-      }).then(pred => {
-        if (pred) {
-          globalThis[llmPredictionKey] = pred;
-          console.log(`[LLM] Prediction cached: ${pred.direction} (${(pred.confidence * 100).toFixed(0)}%)`);
-        } else {
-          console.warn('[LLM] No prediction returned (null) — check API key');
-        }
-      }).catch(err => {
-        console.error(`[LLM] Error: ${err.message}`);
-      });
-    }
-
     const signalsForTrader = buildSignals({ rec, klines1m, polySnapshot, polyPrices, marketUp, marketDown, timeLeftMin, timeAware: activeTimeAware, indicatorsData, spotNow, spotDelta1mPct, candleMeta });
     recordTick(signalsForTrader, is15m ? '15m' : '5m');
 
@@ -718,8 +682,6 @@ export async function startApp({ skipServer = false, timeframe = '5m' } = {}) {
       volumeRecent: indicatorsData.volumeRecent ?? null,
       volumeAvg: indicatorsData.volumeAvg ?? null,
       marketVolumeNum: polySnapshot.ok ? (polySnapshot.market?.volumeNum ?? null) : null,
-      // LLM shadow prediction (if available)
-      llmPrediction: globalThis[llmPredictionKey] ?? null,
     };
 
     // Refresh market cache for executor's getMarket() thunk

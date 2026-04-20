@@ -704,13 +704,6 @@ document.addEventListener('DOMContentLoaded', () => {
             gateRows.push(['Orderbook', `${obDir} (${(obImb * 100).toFixed(0)}%)`, '—', '']);
           }
 
-          // LLM Prediction (shadow)
-          const llm = rt.llmPrediction;
-          if (llm) {
-            const llmIcon = llm.direction === 'UP' ? '🟢' : '🔴';
-            gateRows.push(['LLM Signal', `${llmIcon} ${llm.direction} (${(llm.confidence * 100).toFixed(0)}%)`, '—', 'shadow']);
-          }
-
           // Time
           if (tlm != null) {
             const timeOk = tlm >= (thr.noEntryFinalMinutes ?? 0);

@@ -297,10 +297,6 @@ export class TradingEngine {
                 : (this.executor.openTrade.extraJson || {});
               existing.trajStats = trajStats;
               existing.pnlTrajectory = traj;
-              // Shadow LLM prediction (if available)
-              if (globalThis.__llmPrediction) {
-                existing.llmPrediction = globalThis.__llmPrediction;
-              }
               this.executor.openTrade.extraJson = JSON.stringify(existing);
             } catch (_) {}
           }

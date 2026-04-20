@@ -91,7 +91,7 @@ function getSettlementTrend(n = 5) {
  * @param {number} params.timeLeftMin  - Minutes remaining in current market
  * @returns {{ rawUp: number, signals: Object, confidence: string }}
  */
-export function scoreMomentum({ spotTicks, polyUp, polyDown, timeLeftMin, orderbookImbalance, orderbookWall, llmPrediction }) {
+export function scoreMomentum({ spotTicks, polyUp, polyDown, timeLeftMin, orderbookImbalance, orderbookWall }) {
   const signals = {};
   let upWeight = 0;
   let downWeight = 0;
@@ -343,11 +343,6 @@ export function scoreMomentum({ spotTicks, polyUp, polyDown, timeLeftMin, orderb
       totalWeight += MIDPOINT_WEIGHT;
     }
   }
-
-  // ── 10. LLM Signal (SHADOW MODE — logged but does not influence trades) ──
-  signals.llmDirection = llmPrediction?.direction ?? null;
-  signals.llmConfidence = llmPrediction?.confidence ?? null;
-  // Not wired into weights — collecting data to evaluate accuracy
 
   // ── Compute final probability ─────────────────────────────────
   // If no signals fired, return 50/50 (no trade)

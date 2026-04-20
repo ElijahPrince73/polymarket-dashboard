@@ -84,10 +84,6 @@ function buildGateChecks(status) {
     ? (obImb > 0.1 ? `🟢 Buyers (${(obImb * 100).toFixed(0)}%)` : obImb < -0.1 ? `🔴 Sellers (${(obImb * 100).toFixed(0)}%)` : `⚪ Neutral (${(obImb * 100).toFixed(0)}%)`)
     : '--';
 
-  // LLM
-  const llm = rt.llmPrediction;
-  const llmLabel = llm ? `${llm.direction === 'UP' ? '🟢' : '🔴'} ${llm.direction} (${(llm.confidence * 100).toFixed(0)}%)` : 'Waiting for next market...';
-
   // Entry price for display
   const entryPriceUp = rt.polyPriceUp ?? rt.polyPriceCentsUp;
   const entryPriceDown = rt.polyPriceDown ?? rt.polyPriceCentsDown;
@@ -161,12 +157,6 @@ function buildGateChecks(status) {
       check: '📕 Orderbook',
       current: obLabel,
       required: '—',
-      pass: true,
-    },
-    {
-      check: '🤖 LLM Signal',
-      current: llmLabel,
-      required: 'Shadow only',
       pass: true,
     },
     // ── SECTION: Safeguards ──

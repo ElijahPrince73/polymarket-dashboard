@@ -63,15 +63,18 @@ export const CITIES = [
     tz: "America/New_York",
     unit: "F",
     aliases: ["Miami"],
+    enabled: false, // cut 2026-04-20: -59% ROI, convective subtropical forecasts too noisy
   },
   {
+    // Polymarket resolves on KHOU (William P. Hobby), not KIAH (Intercontinental).
     name: "Houston",
-    station: "KIAH",
-    lat: 29.9902,
-    lon: -95.3368,
+    station: "KHOU",
+    lat: 29.6454,
+    lon: -95.2789,
     tz: "America/Chicago",
     unit: "F",
     aliases: ["Houston"],
+    enabled: false, // cut 2026-04-20: -49% ROI, Gulf moisture instability
   },
   {
     name: "Phoenix",
@@ -83,10 +86,11 @@ export const CITIES = [
     aliases: ["Phoenix"],
   },
   {
+    // Polymarket resolves on KBKF (Buckley Space Force Base, Aurora), not KDEN.
     name: "Denver",
-    station: "KDEN",
-    lat: 39.8561,
-    lon: -104.6737,
+    station: "KBKF",
+    lat: 39.7017,
+    lon: -104.7517,
     tz: "America/Denver",
     unit: "F",
     aliases: ["Denver"],
@@ -175,13 +179,15 @@ export const CITIES = [
   },
   // --- European cities ---
   {
+    // Polymarket resolves on LFPB (Paris–Le Bourget), not LFPG (CDG).
     name: "Paris",
-    station: "LFPG",
-    lat: 48.9962,
-    lon: 2.5979,
+    station: "LFPB",
+    lat: 48.9694,
+    lon: 2.4414,
     tz: "Europe/Paris",
     unit: "C",
     aliases: ["Paris"],
+    enabled: false, // cut 2026-04-20: -43% ROI, station-exact avgError 5.2°C too wide for 1°C buckets
   },
   {
     name: "Berlin",
@@ -200,13 +206,15 @@ export const CITIES = [
     tz: "Europe/Madrid",
     unit: "C",
     aliases: ["Madrid"],
+    enabled: false, // cut 2026-04-20: -16% ROI across 35 trades, persistent forecast bias
   },
   // --- Asia cities ---
   {
+    // Station code RJTT is Haneda; earlier lat/lon was pointing at Narita (~60 km off).
     name: "Tokyo",
     station: "RJTT",
-    lat: 35.7647,
-    lon: 140.3864,
+    lat: 35.5494,
+    lon: 139.7798,
     tz: "Asia/Tokyo",
     unit: "C",
     aliases: ["Tokyo"],
@@ -275,6 +283,7 @@ export const CITIES = [
     tz: "America/Sao_Paulo",
     unit: "C",
     aliases: ["Sao Paulo", "São Paulo"],
+    enabled: false, // cut 2026-04-20: -10% ROI, tropical convection hard to forecast
   },
   {
     name: "Mexico City",
@@ -284,6 +293,214 @@ export const CITIES = [
     tz: "America/Mexico_City",
     unit: "C",
     aliases: ["Mexico City"],
+  },
+  // --- Additional Polymarket-covered cities (added 2026-04-20) ---
+  // Stations + coords sourced from Polymarket resolutionSource URLs; timezone
+  // set to IANA zone covering each airport.
+  {
+    name: "Amsterdam",
+    station: "EHAM",
+    lat: 52.3086,
+    lon: 4.7639,
+    tz: "Europe/Amsterdam",
+    unit: "C",
+    aliases: ["Amsterdam"],
+  },
+  {
+    // Polymarket's URL: /tr/çubuk/LTAC — the WU station is in the Esenboğa
+    // (çubuk) area even though LTAC is formally Güvercinlik. Coords here
+    // follow WU's stated location, not the ICAO registry.
+    name: "Ankara",
+    station: "LTAC",
+    lat: 40.1281,
+    lon: 32.9951,
+    tz: "Europe/Istanbul",
+    unit: "C",
+    aliases: ["Ankara"],
+  },
+  {
+    name: "Beijing",
+    station: "ZBAA",
+    lat: 40.0801,
+    lon: 116.5847,
+    tz: "Asia/Shanghai",
+    unit: "C",
+    aliases: ["Beijing"],
+  },
+  {
+    name: "Buenos Aires",
+    station: "SAEZ",
+    lat: -34.8222,
+    lon: -58.5358,
+    tz: "America/Argentina/Buenos_Aires",
+    unit: "C",
+    aliases: ["Buenos Aires", "BA"],
+  },
+  {
+    name: "Busan",
+    station: "RKPK",
+    lat: 35.1795,
+    lon: 128.9380,
+    tz: "Asia/Seoul",
+    unit: "C",
+    aliases: ["Busan"],
+  },
+  {
+    name: "Cape Town",
+    station: "FACT",
+    lat: -33.9649,
+    lon: 18.6017,
+    tz: "Africa/Johannesburg",
+    unit: "C",
+    aliases: ["Cape Town"],
+  },
+  {
+    name: "Chengdu",
+    station: "ZUUU",
+    lat: 30.5785,
+    lon: 103.9471,
+    tz: "Asia/Shanghai",
+    unit: "C",
+    aliases: ["Chengdu"],
+  },
+  {
+    name: "Chongqing",
+    station: "ZUCK",
+    lat: 29.7192,
+    lon: 106.6419,
+    tz: "Asia/Shanghai",
+    unit: "C",
+    aliases: ["Chongqing"],
+  },
+  {
+    name: "Helsinki",
+    station: "EFHK",
+    lat: 60.3172,
+    lon: 24.9633,
+    tz: "Europe/Helsinki",
+    unit: "C",
+    aliases: ["Helsinki"],
+  },
+  {
+    // HK event description: "Hong Kong Observatory" is the resolution source.
+    // Market never published a Wunderground URL in resolutionSource, so the
+    // ICAO is inferred. Coords point at HKO HQ in Tsim Sha Tsui.
+    name: "Hong Kong",
+    station: "VHHH",
+    lat: 22.3024,
+    lon: 114.1746,
+    tz: "Asia/Hong_Kong",
+    unit: "C",
+    aliases: ["Hong Kong", "HK"],
+  },
+  {
+    // Polymarket uses WIHH (Halim), not WIII (Soekarno-Hatta).
+    name: "Jakarta",
+    station: "WIHH",
+    lat: -6.2667,
+    lon: 106.8908,
+    tz: "Asia/Jakarta",
+    unit: "C",
+    aliases: ["Jakarta"],
+  },
+  {
+    name: "Jeddah",
+    station: "OEJN",
+    lat: 21.6796,
+    lon: 39.1565,
+    tz: "Asia/Riyadh",
+    unit: "C",
+    aliases: ["Jeddah"],
+  },
+  {
+    name: "Kuala Lumpur",
+    station: "WMKK",
+    lat: 2.7456,
+    lon: 101.7072,
+    tz: "Asia/Kuala_Lumpur",
+    unit: "C",
+    aliases: ["Kuala Lumpur", "KL"],
+  },
+  {
+    name: "Lagos",
+    station: "DNMM",
+    lat: 6.5774,
+    lon: 3.3211,
+    tz: "Africa/Lagos",
+    unit: "C",
+    aliases: ["Lagos"],
+  },
+  {
+    name: "Lucknow",
+    station: "VILK",
+    lat: 26.7606,
+    lon: 80.8893,
+    tz: "Asia/Kolkata",
+    unit: "C",
+    aliases: ["Lucknow"],
+  },
+  {
+    name: "Milan",
+    station: "LIMC",
+    lat: 45.6306,
+    lon: 8.7281,
+    tz: "Europe/Rome",
+    unit: "C",
+    aliases: ["Milan", "Milano"],
+  },
+  {
+    name: "Munich",
+    station: "EDDM",
+    lat: 48.3538,
+    lon: 11.7861,
+    tz: "Europe/Berlin",
+    unit: "C",
+    aliases: ["Munich", "München"],
+  },
+  {
+    name: "Shanghai",
+    station: "ZSPD",
+    lat: 31.1434,
+    lon: 121.8052,
+    tz: "Asia/Shanghai",
+    unit: "C",
+    aliases: ["Shanghai"],
+  },
+  {
+    name: "Shenzhen",
+    station: "ZGSZ",
+    lat: 22.6394,
+    lon: 113.8108,
+    tz: "Asia/Shanghai",
+    unit: "C",
+    aliases: ["Shenzhen"],
+  },
+  {
+    name: "Taipei",
+    station: "RCSS",
+    lat: 25.0694,
+    lon: 121.5522,
+    tz: "Asia/Taipei",
+    unit: "C",
+    aliases: ["Taipei"],
+  },
+  {
+    name: "Warsaw",
+    station: "EPWA",
+    lat: 52.1657,
+    lon: 20.9671,
+    tz: "Europe/Warsaw",
+    unit: "C",
+    aliases: ["Warsaw", "Warszawa"],
+  },
+  {
+    name: "Wuhan",
+    station: "ZHHH",
+    lat: 30.7838,
+    lon: 114.2081,
+    tz: "Asia/Shanghai",
+    unit: "C",
+    aliases: ["Wuhan"],
   },
 ];
 
@@ -420,6 +637,95 @@ export const MODEL_CANDIDATES = {
   "Mexico City": {
     shortRange: [],
     global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  // --- Added 2026-04-20 (Polymarket coverage expansion) ---
+  Amsterdam: {
+    shortRange: ["icon_eu"],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Ankara: {
+    shortRange: ["icon_eu"],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Beijing: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  "Buenos Aires": {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Busan: {
+    shortRange: ["jma_msm"],
+    global: ["jma_gsm", "ecmwf_ifs025", "icon_global", "cma_grapes_global", "gem_global"],
+  },
+  "Cape Town": {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Chengdu: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Chongqing: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Helsinki: {
+    shortRange: ["icon_eu"],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  "Hong Kong": {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Jakarta: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Jeddah: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  "Kuala Lumpur": {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Lagos: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Lucknow: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Milan: {
+    shortRange: ["icon_eu"],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Munich: {
+    shortRange: ["icon_eu"],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Shanghai: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Shenzhen: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
+  },
+  Taipei: {
+    shortRange: [],
+    global: ["jma_gsm", "ecmwf_ifs025", "icon_global", "cma_grapes_global", "gem_global"],
+  },
+  Warsaw: {
+    shortRange: ["icon_eu"],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global"],
+  },
+  Wuhan: {
+    shortRange: [],
+    global: ["ecmwf_ifs025", "gfs_seamless", "icon_global", "gem_global", "cma_grapes_global"],
   },
 };
 

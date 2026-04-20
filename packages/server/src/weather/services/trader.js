@@ -4,8 +4,11 @@ import {
   MAX_SLIPPAGE,
   MAX_CITY_EXPOSURE_PCT,
   MAX_DAILY_EXPOSURE_PCT,
+  MIN_ABS_MODEL_DIFF,
   MIN_HOURS_TO_CLOSE,
   MIN_MODEL_CONSENSUS,
+  MIN_PRICE,
+  MAX_PRICE,
   MIN_VOLUME,
   SIGMA_C,
   SIGMA_F,
@@ -99,6 +102,7 @@ export async function runTradeDiscovery(dbApi = db) {
 
   const logs = [];
   for (const city of CITIES) {
+    if (city.enabled === false) continue;
     const localDate = fmtDateInTz(city.tz);
     const tomorrowDate = nextDay(localDate);
     const [daily, metar] = await Promise.all([
@@ -177,9 +181,14 @@ export async function runTradeDiscovery(dbApi = db) {
         : `Forecast tmin=${forecastTemp}${city.unit} σ=${sigma} (Blended ${blendedTemps?.modelsUsed ?? 0} models${metar?.tempC != null ? " + METAR" : ""})`;
 
       // === RANGE BUCKET STRATEGY ===
-      // Buy YES on the 2-3 range buckets closest to the forecast temperature.
-      // These have ~20-35% model probability and are typically priced 10-35¢.
-      // Win rate ~30% but each win pays 3-5x.
+      // Proximity-based selection: pick the 3 buckets whose range midpoints are
+      // closest to the blended forecast temperature. Backtest on 491 resolved
+      // trades showed this doubles winrate (15.9% → 28.8%) and flips ROI positive
+      // on newly-discovered trades (+11.9% flat on the 106 buckets the old
+      // cheapest-3 strategy would never have picked). No edge filter — we trust
+      // proximity over modelProb magnitude since sigma calibration is unreliable
+      // at a 1°C-bucket granularity. Kelly sizing still uses modelProb so buckets
+      // the market prices fairly get smaller stakes.
 
       // Collect range buckets with their model probability
       const rangeCandidates = [];
@@ -221,22 +230,16 @@ export async function runTradeDiscovery(dbApi = db) {
           continue;
         }
 
-        // Price-asymmetry entry: buy any range bucket in the cheap zone
-        // The edge IS the price — at 20¢ entry, need only 20% WR to break even
-        if (yesPrice < 0.05) continue;  // Too cheap — likely resolved or illiquid
-        if (yesPrice > 0.40) continue;  // Too expensive — poor risk/reward for asymmetry
+        if (yesPrice < MIN_PRICE || yesPrice > MAX_PRICE) continue;
 
-        // Price-based Kelly sizing: use yesPrice as implied probability
-        // At 20¢, market implies 20% chance. If we think it's even slightly better, we have edge.
-        // Use a conservative edge estimate: assume our true prob = yesPrice + small edge
-        const impliedProb = yesPrice;
-        const edgeEstimate = Math.min(0.10, impliedProb * 0.25); // 25% edge over market, capped at 10%
-        const p = impliedProb + edgeEstimate;
+        // Distance from forecast in Celsius (bucket midpoint minus forecast).
+        // Proximity drives selection; modelProb only feeds Kelly sizing.
+        const bucketMidC = (range.lowC + range.highC) / 2;
+        const distanceC = Math.abs(bucketMidC - forecastTempForCalc);
+
         const payoff = (1 / yesPrice) - 1;
-        const kelly = (p * payoff - (1 - p)) / payoff;
-        const sizePct = (kelly / 2) * kellyMultiplier;
-
-        if (sizePct <= 0) continue;
+        const kelly = (modelProb * payoff - (1 - modelProb)) / payoff;
+        const sizePct = Math.max(0, (kelly / 2) * kellyMultiplier);
 
         rangeCandidates.push({
           question,
@@ -245,12 +248,12 @@ export async function runTradeDiscovery(dbApi = db) {
           yesPrice,
           tokenId: tokenIds[yesIdx],
           sizePct,
-          edge: edgeEstimate,
+          distanceC,
+          edge: modelProb - yesPrice, // logged, not used for selection
         });
       }
 
-      // Sort by payoff potential (cheapest first — best risk/reward)
-      rangeCandidates.sort((a, b) => a.yesPrice - b.yesPrice);
+      rangeCandidates.sort((a, b) => a.distanceC - b.distanceC);
       const topBuckets = rangeCandidates.slice(0, 3);
 
       for (const bucket of topBuckets) {
@@ -286,7 +289,7 @@ export async function runTradeDiscovery(dbApi = db) {
           status: "OPEN",
           result: "PENDING",
           notes:
-            `${blendedNote} | PRICE_ASYM | price=${bucket.yesPrice} edge=${bucket.edge.toFixed(4)} ` +
+            `${blendedNote} | MODEL_EDGE | price=${bucket.yesPrice} edge=${bucket.edge.toFixed(4)} ` +
             `Kelly=${bucket.sizePct.toFixed(4)} | modelProb=${bucket.modelProb.toFixed(4)} ` +
             `| AvgErr=${accuracy.avgError ?? "n/a"} | KellyMult=${kellyMultiplier}`,
           token_id: bucket.tokenId ?? null,

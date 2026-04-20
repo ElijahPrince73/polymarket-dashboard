@@ -1,6 +1,6 @@
 import db from "../db.js";
 import { detectMarketType, fetchJson } from "../utils.js";
-import { fetchObservedHighTemp } from "./visual-crossing.js";
+import { fetchObservedHighTempDispatched } from "./noaa-cdo.js";
 
 function extractEventSlug(url) {
   const m = String(url || "").match(/polymarket\.com\/event\/([^/?#]+)/i);
@@ -80,18 +80,19 @@ export async function runResolver(dbApi = db) {
     const type = detectMarketType(row.question) || "other";
     const actualObservation =
       type === "temp_max" && row.city && row.event_date
-        ? await fetchObservedHighTemp(row.city, row.event_date)
+        ? await fetchObservedHighTempDispatched(row.city, row.event_date)
         : null;
     const actualTemp = actualObservation?.actualTemp ?? null;
-    // Convert actual temp to °C for comparison with forecast_temp (always in °C)
-    const actualUnit = actualObservation?.unit ?? "F";
-    const actualTempC = actualTemp != null
-      ? (actualUnit === "F" ? (actualTemp - 32) * 5 / 9 : actualTemp)
-      : null;
+    // forecast_temp is stored in the CITY'S native unit, and actualObservation
+    // comes back in that same unit — no Celsius conversion needed.
     const forecastError =
-      row.forecast_temp != null && actualTempC != null
-        ? Math.abs(row.forecast_temp - actualTempC)
+      row.forecast_temp != null && actualTemp != null
+        ? Math.abs(row.forecast_temp - actualTemp)
         : null;
+    const actualSrc = actualObservation?.source;
+    const noteWithSrc = actualSrc
+      ? `${row.notes ?? ""} | actual_src=${actualSrc}`
+      : row.notes;
 
     await dbApi.updateTrade(row.id, {
       status: "RESOLVED",
@@ -100,6 +101,7 @@ export async function runResolver(dbApi = db) {
       actual_temp: actualTemp,
       forecast_error: forecastError,
       resolved_at: now,
+      notes: noteWithSrc,
     });
     resolved += 1;
 

@@ -11,7 +11,6 @@ Automated trading bot for Polymarket's 5-minute BTC price prediction markets. Pr
 
 **Architecture:**
 - **Momentum model** with 8 weighted signals: BTC spot deltas (5s/15s/60s), Polymarket price momentum, price level, tick acceleration, orderbook imbalance, settlement trend
-- **LLM shadow signal** (Claude Haiku) — predicts direction with 15-minute candle context, logged for evaluation but doesn't influence trades
 - **Fractional Kelly sizing** — position size scales with model confidence (quarter Kelly, α=0.25)
 - **Percentage-based exits** — 15% take profit, 20% stop loss, 250s force exit (all scale with position size)
 - **Entry delay** — waits until 2.5 minutes left in market for direction to establish
@@ -21,7 +20,6 @@ Automated trading bot for Polymarket's 5-minute BTC price prediction markets. Pr
 packages/server/src/btc/
 ├── engines/
 │   ├── momentum.js          # 8-signal momentum scoring model
-│   ├── llmSignal.js         # Claude Haiku shadow predictor
 │   ├── orderbookImbalance.js # Polymarket orderbook analysis
 │   └── edge.js              # Edge-based entry decisions
 ├── domain/
@@ -131,7 +129,7 @@ GET /api/btc/archive/trades/:version
 
 **Required:** `PRIVATE_KEY`, `CLOB_API_KEY`, `CLOB_SECRET`, `CLOB_PASSPHRASE`, `CLOB_HOST`, `CHAIN_ID`, `SIGNATURE_TYPE`, `FUNDER_ADDRESS`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `POLYGON_WSS_URLS`
 
-**Optional:** `ANTHROPIC_API_KEY` (LLM shadow signal), `AUTO_START_TRADING` (default: true)
+**Optional:** `AUTO_START_TRADING` (default: true)
 
 ## License
 

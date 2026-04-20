@@ -153,25 +153,6 @@ export function pickDailyForDate(daily, dateStr) {
   };
 }
 
-export function pickHourlyForDate(hourly, dateStr) {
-  const temps = [];
-  const winds = [];
-  const precs = [];
-  for (let i = 0; i < (hourly?.time?.length ?? 0); i += 1) {
-    if (hourly.time[i].startsWith(dateStr)) {
-      temps.push(hourly.temperature_2m[i]);
-      winds.push(hourly.wind_speed_10m[i]);
-      precs.push(hourly.precipitation[i]);
-    }
-  }
-  if (!temps.length) return null;
-  return {
-    tmax: Math.max(...temps),
-    tmin: Math.min(...temps),
-    windMax: Math.max(...winds),
-    precipSum: precs.reduce((a, b) => a + b, 0),
-  };
-}
 
 export function applyCalibration(city, type, prob) {
   const row = getCalibration(city, type);

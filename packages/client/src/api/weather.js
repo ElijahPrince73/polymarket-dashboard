@@ -8,18 +8,6 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-export function getWeatherStatus() {
-  return request('/api/weather/status');
-}
-
-export function getWeatherTrades() {
-  return request('/api/weather/trades');
-}
-
-export function getWeatherSummary() {
-  return request('/api/weather/summary');
-}
-
 export function triggerWeatherTick() {
   return request('/api/weather/tick', { method: 'POST' });
 }

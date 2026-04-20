@@ -60,24 +60,6 @@ export async function placeBuyOrder(tokenId, price, sizeUsd) {
   }
 }
 
-export async function placeSellOrder(tokenId, price, size) {
-  const client = getClobClient();
-  try {
-    const { OrderType } = await import("@polymarket/clob-client");
-    const resp = await client.createAndPostOrder(
-      { tokenID: tokenId, price, size, side: "SELL" },
-      {},
-      OrderType.FOK
-    );
-    if (!resp?.orderID) {
-      return { success: false, error: "FOK sell not filled", orderId: null };
-    }
-    return { success: true, orderId: resp?.orderID, resp };
-  } catch (e) {
-    return { success: false, error: e?.message || String(e), orderId: null };
-  }
-}
-
 export async function cancelOrder(orderId) {
   const client = getClobClient();
   try {
